@@ -1,7 +1,9 @@
 //! UI components and dialog implementations.
 
 pub(crate) mod entry;
+pub(crate) mod file_select;
 pub(crate) mod message;
+pub(crate) mod progress;
 pub(crate) mod widgets;
 
 use crate::render::{rgb, Rgba};
@@ -21,6 +23,9 @@ pub struct Colors {
     pub input_border: Rgba,
     pub input_border_focused: Rgba,
     pub input_placeholder: Rgba,
+    pub progress_bg: Rgba,
+    pub progress_fill: Rgba,
+    pub progress_border: Rgba,
 }
 
 /// Light theme colors.
@@ -37,6 +42,9 @@ pub static THEME_LIGHT: Colors = Colors {
     input_border: rgb(200, 200, 200),
     input_border_focused: rgb(100, 150, 200),
     input_placeholder: rgb(150, 150, 150),
+    progress_bg: rgb(230, 230, 230),
+    progress_fill: rgb(70, 140, 220),
+    progress_border: rgb(200, 200, 200),
 };
 
 /// Dark theme colors.
@@ -53,6 +61,9 @@ pub static THEME_DARK: Colors = Colors {
     input_border: rgb(90, 90, 90),
     input_border_focused: rgb(100, 150, 200),
     input_placeholder: rgb(120, 120, 120),
+    progress_bg: rgb(60, 60, 60),
+    progress_fill: rgb(70, 140, 220),
+    progress_border: rgb(90, 90, 90),
 };
 
 /// Detect the current system theme.

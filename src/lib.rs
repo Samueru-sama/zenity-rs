@@ -10,7 +10,9 @@ pub mod ui;
 pub use error::Error;
 pub use ui::{ButtonPreset, Colors, DialogResult, Icon, THEME_DARK, THEME_LIGHT};
 pub use ui::entry::{EntryBuilder, EntryResult};
+pub use ui::file_select::{FileSelectBuilder, FileSelectResult};
 pub use ui::message::MessageBuilder;
+pub use ui::progress::{ProgressBuilder, ProgressResult};
 
 /// Creates a new message dialog builder.
 ///
@@ -71,4 +73,14 @@ pub fn entry() -> EntryBuilder {
 /// Creates a password entry dialog (entry with hidden text).
 pub fn password() -> EntryBuilder {
     EntryBuilder::new().hide_text(true)
+}
+
+/// Creates a new progress dialog builder.
+pub fn progress() -> ProgressBuilder {
+    ProgressBuilder::new()
+}
+
+/// Creates a new file selection dialog builder.
+pub fn file_select() -> FileSelectBuilder {
+    FileSelectBuilder::new()
 }

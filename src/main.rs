@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use lexopt::prelude::*;
 
-use rask::{ButtonPreset, EntryResult, Icon, entry, message, password};
+use rask::{ButtonPreset, EntryResult, FileSelectResult, Icon, ProgressResult, entry, file_select, message, password, progress};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -25,6 +25,16 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut title = String::new();
     let mut text = String::new();
     let mut entry_text = String::new();
+
+    // Progress options
+    let mut percentage: u32 = 0;
+    let mut pulsate = false;
+    let mut auto_close = false;
+
+    // File selection options
+    let mut directory_mode = false;
+    let mut save_mode = false;
+    let mut filename = String::new();
 
     // Dialog type
     let mut dialog_type: Option<DialogType> = None;
@@ -47,6 +57,8 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("question") => dialog_type = Some(DialogType::Question),
             Long("entry") => dialog_type = Some(DialogType::Entry),
             Long("password") => dialog_type = Some(DialogType::Password),
+            Long("progress") => dialog_type = Some(DialogType::Progress),
+            Long("file-selection") => dialog_type = Some(DialogType::FileSelection),
 
             // Common options
             Long("title") => title = parser.value()?.string()?,
@@ -59,8 +71,18 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 }
             }
 
+            // Progress options
+            Long("percentage") => percentage = parser.value()?.string()?.parse()?,
+            Long("pulsate") => pulsate = true,
+            Long("auto-close") => auto_close = true,
+
+            // File selection options
+            Long("directory") => directory_mode = true,
+            Long("save") => save_mode = true,
+            Long("filename") => filename = parser.value()?.string()?,
+
             // TODO: Add more dialog types
-            Long("progress") | Long("file-selection") | Long("list") | Long("calendar") => {
+            Long("list") | Long("calendar") => {
                 return Err(format!("dialog type not yet implemented: {:?}", arg).into());
             }
 
@@ -131,7 +153,44 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 .show()?;
             handle_entry_result(result)
         }
+        DialogType::Progress => {
+            let result = progress()
+                .title(if title.is_empty() { "Progress" } else { &title })
+                .text(&text)
+                .percentage(percentage)
+                .pulsate(pulsate)
+                .auto_close(auto_close)
+                .show()?;
+            handle_progress_result(result)
+        }
+        DialogType::FileSelection => {
+            let mut builder = file_select();
+            if !title.is_empty() {
+                builder = builder.title(&title);
+            }
+            builder = builder.directory(directory_mode).save(save_mode);
+            if !filename.is_empty() {
+                builder = builder.filename(&filename);
+            }
+            let result = builder.show()?;
+            handle_file_select_result(result)
+        }
     }
+}
+
+fn handle_file_select_result(result: FileSelectResult) -> Result<i32, Box<dyn std::error::Error>> {
+    match result {
+        FileSelectResult::Selected(path) => {
+            println!("{}", path.display());
+            Ok(0)
+        }
+        FileSelectResult::Cancelled => Ok(1),
+        FileSelectResult::Closed => Ok(255),
+    }
+}
+
+fn handle_progress_result(result: ProgressResult) -> Result<i32, Box<dyn std::error::Error>> {
+    Ok(result.exit_code())
 }
 
 fn handle_entry_result(result: EntryResult) -> Result<i32, Box<dyn std::error::Error>> {
@@ -153,6 +212,8 @@ enum DialogType {
     Question,
     Entry,
     Password,
+    Progress,
+    FileSelection,
 }
 
 fn print_help() {
@@ -169,8 +230,8 @@ DIALOG TYPES:
     --question          Display a question dialog (Yes/No)
     --entry             Display a text entry dialog
     --password          Display a password entry dialog
-    --progress          Display a progress dialog (not yet implemented)
-    --file-selection    Display a file selection dialog (not yet implemented)
+    --progress          Display a progress dialog
+    --file-selection    Display a file selection dialog
     --list              Display a list dialog (not yet implemented)
     --calendar          Display a calendar dialog (not yet implemented)
 
@@ -179,6 +240,12 @@ OPTIONS:
     --text=TEXT         Set the dialog text/prompt
     --entry-text=TEXT   Set default text for entry dialog
     --hide-text         Hide entered text (password mode)
+    --percentage=N      Initial progress percentage (0-100)
+    --pulsate           Enable pulsating progress bar
+    --auto-close        Close dialog when progress reaches 100%
+    --directory         Select directories only (file-selection)
+    --save              Save mode (file-selection)
+    --filename=TEXT     Default filename for save mode
     -h, --help          Print this help message
     --version           Print version information
 
@@ -187,9 +254,13 @@ EXAMPLES:
     rask --question --text="Do you want to continue?"
     rask --entry --text="Enter your name:" --entry-text="John"
     rask --password --text="Enter password:"
+    echo "50" | rask --progress --text="Working..."
+    rask --progress --pulsate --text="Please wait..."
+    rask --file-selection --title="Open File"
+    rask --file-selection --directory --title="Select Folder"
 
 EXIT CODES:
-    0   OK/Yes button clicked, or text entered
+    0   OK/Yes button clicked, or text entered, or file selected
     1   Cancel/No button clicked
     255 Dialog was closed
     100 Error occurred
