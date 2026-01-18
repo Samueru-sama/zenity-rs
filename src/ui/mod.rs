@@ -1,5 +1,6 @@
 //! UI components and dialog implementations.
 
+pub(crate) mod entry;
 pub(crate) mod message;
 pub(crate) mod widgets;
 

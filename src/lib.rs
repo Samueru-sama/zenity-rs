@@ -9,6 +9,7 @@ pub mod ui;
 
 pub use error::Error;
 pub use ui::{ButtonPreset, Colors, DialogResult, Icon, THEME_DARK, THEME_LIGHT};
+pub use ui::entry::{EntryBuilder, EntryResult};
 pub use ui::message::MessageBuilder;
 
 /// Creates a new message dialog builder.
@@ -60,4 +61,14 @@ pub fn question(text: &str) -> MessageBuilder {
         .text(text)
         .icon(Icon::Question)
         .buttons(ButtonPreset::YesNo)
+}
+
+/// Creates a new entry dialog builder.
+pub fn entry() -> EntryBuilder {
+    EntryBuilder::new()
+}
+
+/// Creates a password entry dialog (entry with hidden text).
+pub fn password() -> EntryBuilder {
+    EntryBuilder::new().hide_text(true)
 }

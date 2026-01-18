@@ -56,6 +56,10 @@ impl<'a> TextRenderer<'a> {
     pub fn finish(self) -> Canvas {
         let glyphs = self.layout();
 
+        if glyphs.is_empty() {
+            return Canvas::new(1, 1);
+        }
+
         let bounds = glyphs
             .iter()
             .map(|g| g.px_bounds())
@@ -68,26 +72,58 @@ impl<'a> TextRenderer<'a> {
             })
             .unwrap_or_default();
 
-        let width = (bounds.width().ceil() as u32).max(1);
-        let height = (bounds.height().ceil() as u32).max(1);
+        // Add padding to avoid clipping
+        let width = (bounds.width().ceil() as u32 + 2).max(1);
+        let height = (bounds.height().ceil() as u32 + 2).max(1);
 
         let mut pixmap = Pixmap::new(width, height).unwrap();
         let pixels = pixmap.pixels_mut();
 
+        // Offset to account for bounds.min (which can be negative for some glyphs)
+        let base_x = -bounds.min.x.floor() as i32 + 1;
+        let base_y = -bounds.min.y.floor() as i32 + 1;
+
         for g in glyphs {
             let glyph_bounds = g.px_bounds();
-            let offset_x = (glyph_bounds.min.x - bounds.min.x) as u32;
-            let offset_y = (glyph_bounds.min.y - bounds.min.y) as u32;
+            // Use floor for proper pixel alignment
+            let gx = glyph_bounds.min.x.floor() as i32 + base_x;
+            let gy = glyph_bounds.min.y.floor() as i32 + base_y;
 
             g.draw(|x, y, c| {
-                let idx = ((offset_y + y) * width + offset_x + x) as usize;
-                if let Some(pix) = pixels.get_mut(idx) {
-                    // Premultiplied alpha
-                    let a = (c * 255.0).round() as u8;
-                    let r = (self.color.r as u32 * a as u32 / 255) as u8;
-                    let g = (self.color.g as u32 * a as u32 / 255) as u8;
-                    let b = (self.color.b as u32 * a as u32 / 255) as u8;
-                    *pix = tiny_skia::PremultipliedColorU8::from_rgba(r, g, b, a).unwrap();
+                let px = gx + x as i32;
+                let py = gy + y as i32;
+
+                if px >= 0 && py >= 0 && (px as u32) < width && (py as u32) < height {
+                    let idx = (py as u32 * width + px as u32) as usize;
+                    if let Some(pix) = pixels.get_mut(idx) {
+                        // Premultiplied alpha blending
+                        let a = (c * 255.0).round() as u8;
+                        if a > 0 {
+                            let r = (self.color.r as u32 * a as u32 / 255) as u8;
+                            let g = (self.color.g as u32 * a as u32 / 255) as u8;
+                            let b = (self.color.b as u32 * a as u32 / 255) as u8;
+
+                            // Blend with existing pixel (SrcOver)
+                            let existing = *pix;
+                            if existing.alpha() == 0 {
+                                *pix = tiny_skia::PremultipliedColorU8::from_rgba(r, g, b, a).unwrap();
+                            } else {
+                                // Alpha composite
+                                let ea = existing.alpha() as u32;
+                                let er = existing.red() as u32;
+                                let eg = existing.green() as u32;
+                                let eb = existing.blue() as u32;
+
+                                let inv_a = 255 - a as u32;
+                                let out_a = (a as u32 + ea * inv_a / 255).min(255) as u8;
+                                let out_r = (r as u32 + er * inv_a / 255).min(255) as u8;
+                                let out_g = (g as u32 + eg * inv_a / 255).min(255) as u8;
+                                let out_b = (b as u32 + eb * inv_a / 255).min(255) as u8;
+
+                                *pix = tiny_skia::PremultipliedColorU8::from_rgba(out_r, out_g, out_b, out_a).unwrap();
+                            }
+                        }
+                    }
                 }
             });
         }

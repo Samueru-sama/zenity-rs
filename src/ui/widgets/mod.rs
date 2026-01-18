@@ -1,6 +1,7 @@
 //! Reusable UI widgets.
 
 pub(crate) mod button;
+pub(crate) mod text_input;
 
 use crate::backend::WindowEvent;
 use crate::render::Canvas;
