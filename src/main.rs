@@ -119,8 +119,14 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
         }
     }
 
-    // Default to info if no dialog type specified
-    let dialog_type = dialog_type.unwrap_or(DialogType::Info);
+    // Show help if no dialog type specified
+    let dialog_type = match dialog_type {
+        Some(dt) => dt,
+        None => {
+            print_help();
+            return Ok(0);
+        }
+    };
 
     // Build and show the dialog
     match dialog_type {
