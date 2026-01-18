@@ -205,8 +205,6 @@ impl ListBuilder {
         ok_button.set_position(bx, button_y);
 
         let mut canvas = Canvas::new(width, height);
-        let mut mouse_x = 0i32;
-        let mut mouse_y = 0i32;
         let mut scroll_offset = 0usize;
         let mut hovered_row: Option<usize> = None;
         let mut single_selected: Option<usize> = None;
@@ -366,16 +364,16 @@ impl ListBuilder {
                 WindowEvent::CloseRequested => return Ok(ListResult::Closed),
                 WindowEvent::RedrawRequested => needs_redraw = true,
                 WindowEvent::CursorMove(pos) => {
-                    mouse_x = pos.x as i32;
-                    mouse_y = pos.y as i32;
+                    let mx = pos.x as i32;
+                    let my = pos.y as i32;
 
                     let old_hovered = hovered_row;
                     hovered_row = None;
 
-                    if mouse_x >= list_x && mouse_x < list_x + list_w as i32
-                        && mouse_y >= data_y && mouse_y < list_y + list_h as i32
+                    if mx >= list_x && mx < list_x + list_w as i32
+                        && my >= data_y && my < list_y + list_h as i32
                     {
-                        let rel_y = (mouse_y - data_y) as usize;
+                        let rel_y = (my - data_y) as usize;
                         let ri = scroll_offset + rel_y / ROW_HEIGHT as usize;
                         if ri < rows.len() {
                             hovered_row = Some(ri);
