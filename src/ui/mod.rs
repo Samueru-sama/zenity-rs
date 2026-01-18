@@ -133,6 +133,7 @@ impl ButtonPreset {
 pub enum DialogResult {
     Button(usize),
     Closed,
+    Timeout,
 }
 
 impl DialogResult {
@@ -142,6 +143,7 @@ impl DialogResult {
             DialogResult::Button(1) => 1,
             DialogResult::Button(2) => 2,
             DialogResult::Button(_) => 3, // Additional buttons
+            DialogResult::Timeout => 5,
             DialogResult::Closed => 255,
         }
     }

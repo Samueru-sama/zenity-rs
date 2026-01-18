@@ -77,7 +77,7 @@ impl DisplayConnection for Connection {
 
 const MOVERESIZE_MOVE: u32 = 8;
 const KEYCODE_ESC: u8 = 9;
-const WM_CLASS: &[u8] = b"rask\0rask\0";
+const WM_CLASS: &[u8] = b"zenity-rs\0zenity-rs\0";
 
 pub(crate) struct X11Window {
     atoms: Atoms,

@@ -504,10 +504,6 @@ impl ListBuilder {
                 if let WindowEvent::CloseRequested = ev {
                     return Ok(ListResult::Closed);
                 }
-                if let WindowEvent::CursorMove(pos) = ev {
-                    mouse_x = pos.x as i32;
-                    mouse_y = pos.y as i32;
-                }
                 needs_redraw |= ok_button.process_event(&ev);
                 needs_redraw |= cancel_button.process_event(&ev);
             }

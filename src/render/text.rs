@@ -20,11 +20,6 @@ impl Font {
         }
     }
 
-    /// Returns the line height of this font.
-    pub fn line_height(&self) -> f32 {
-        self.font.height() + self.font.line_gap()
-    }
-
     /// Returns a renderer for the given text.
     pub fn render<'a>(&'a self, text: &'a str) -> TextRenderer<'a> {
         TextRenderer {

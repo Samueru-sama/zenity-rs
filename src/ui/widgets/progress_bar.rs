@@ -65,6 +65,7 @@ impl ProgressBar {
     }
 
     /// Returns the current progress (0.0 to 1.0).
+    #[allow(dead_code)]
     pub fn progress(&self) -> f32 {
         self.progress
     }
@@ -74,6 +75,7 @@ impl ProgressBar {
         self.y = y;
     }
 
+    #[allow(dead_code)]
     pub fn width(&self) -> u32 {
         self.width
     }

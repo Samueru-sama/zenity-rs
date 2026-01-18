@@ -1,4 +1,4 @@
-//! rask - Display simple GUI dialogs from the command line.
+//! zenity-rs - Display simple GUI dialogs from the command line.
 //!
 //! This library provides simple GUI dialogs for shell scripts and command-line tools.
 
@@ -21,7 +21,7 @@ pub use ui::progress::{ProgressBuilder, ProgressResult};
 /// # Example
 ///
 /// ```no_run
-/// use rask::{message, Icon, ButtonPreset};
+/// use zenity_rs::{message, Icon, ButtonPreset};
 ///
 /// let result = message()
 ///     .title("Information")

@@ -448,23 +448,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
-name = "rask"
-version = "0.1.0"
-dependencies = [
- "ab_glyph",
- "bitflags 2.10.0",
- "dirs",
- "kbvm",
- "lexopt",
- "memmap2",
- "tempfile",
- "tiny-skia",
- "wayland-client",
- "wayland-protocols",
- "x11rb",
-]
-
-[[package]]
 name = "redox_users"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -756,3 +739,20 @@ name = "x11rb-protocol"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd"
+
+[[package]]
+name = "zenity-rs"
+version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+ "bitflags 2.10.0",
+ "dirs",
+ "kbvm",
+ "lexopt",
+ "memmap2",
+ "tempfile",
+ "tiny-skia",
+ "wayland-client",
+ "wayland-protocols",
+ "x11rb",
+]

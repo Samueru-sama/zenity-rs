@@ -28,6 +28,7 @@ pub(crate) trait Window {
 
 /// Events that can be emitted by a window.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub(crate) enum WindowEvent {
     CloseRequested,
     RedrawRequested,
@@ -56,6 +57,7 @@ pub(crate) enum MouseButton {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum ScrollDirection {
     Up,
     Down,

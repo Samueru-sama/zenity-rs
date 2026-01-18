@@ -9,6 +9,7 @@ use crate::render::Canvas;
 use crate::ui::Colors;
 
 /// Trait for UI widgets.
+#[allow(dead_code)]
 pub(crate) trait Widget {
     fn width(&self) -> u32;
     fn height(&self) -> u32;

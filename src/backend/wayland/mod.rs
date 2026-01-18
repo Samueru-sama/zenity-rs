@@ -161,7 +161,7 @@ impl WaylandWindow {
         state.xdg_toplevel = Some(xdg_toplevel.clone());
 
         // Set up window properties
-        xdg_toplevel.set_app_id("rask".to_string());
+        xdg_toplevel.set_app_id("zenity-rs".to_string());
         xdg_toplevel.set_min_size(width as i32, height as i32);
         xdg_toplevel.set_max_size(width as i32, height as i32);
 

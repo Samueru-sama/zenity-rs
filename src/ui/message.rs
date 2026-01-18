@@ -1,5 +1,7 @@
 //! Message dialog implementation (info, warning, error, question).
 
+use std::time::{Duration, Instant};
+
 use crate::backend::{MouseButton, Window, WindowEvent, create_window};
 use crate::error::Error;
 use crate::render::{Canvas, Font, rgb};
@@ -19,6 +21,7 @@ pub struct MessageBuilder {
     text: String,
     icon: Option<Icon>,
     buttons: ButtonPreset,
+    timeout: Option<u32>,
     colors: Option<&'static Colors>,
 }
 
@@ -29,8 +32,15 @@ impl MessageBuilder {
             text: String::new(),
             icon: None,
             buttons: ButtonPreset::Ok,
+            timeout: None,
             colors: None,
         }
+    }
+
+    /// Set timeout in seconds. Dialog will auto-close after this time.
+    pub fn timeout(mut self, seconds: u32) -> Self {
+        self.timeout = Some(seconds);
+        self
     }
 
     pub fn title(mut self, title: &str) -> Self {
@@ -115,7 +125,6 @@ impl MessageBuilder {
             &self.text,
             self.icon,
             &buttons,
-            text_canvas.width(),
             text_canvas.height(),
         );
         window.set_contents(&canvas)?;
@@ -123,8 +132,28 @@ impl MessageBuilder {
 
         // Event loop
         let mut dragging = false;
+        let deadline = self.timeout.map(|secs| Instant::now() + Duration::from_secs(secs as u64));
+
         loop {
-            let event = window.wait_for_event()?;
+            // Check timeout
+            if let Some(deadline) = deadline {
+                if Instant::now() >= deadline {
+                    return Ok(DialogResult::Timeout);
+                }
+            }
+
+            // Get event (use polling with sleep if timeout is set)
+            let event = if deadline.is_some() {
+                match window.poll_for_event()? {
+                    Some(e) => e,
+                    None => {
+                        std::thread::sleep(Duration::from_millis(50));
+                        continue;
+                    }
+                }
+            } else {
+                window.wait_for_event()?
+            };
 
             match &event {
                 WindowEvent::CloseRequested => {
@@ -138,14 +167,11 @@ impl MessageBuilder {
                         &self.text,
                         self.icon,
                         &buttons,
-                        text_canvas.width(),
                         text_canvas.height(),
                     );
                     window.set_contents(&canvas)?;
                 }
                 WindowEvent::ButtonPress(MouseButton::Left) => {
-                    // Check if clicking on title bar area (for dragging)
-                    // For simplicity, we'll allow dragging from anywhere not on a button
                     dragging = true;
                 }
                 WindowEvent::ButtonRelease(MouseButton::Left) => {
@@ -202,7 +228,6 @@ impl MessageBuilder {
                     &self.text,
                     self.icon,
                     &buttons,
-                    text_canvas.width(),
                     text_canvas.height(),
                 );
                 window.set_contents(&canvas)?;
@@ -218,7 +243,6 @@ fn draw_dialog(
     text: &str,
     icon: Option<Icon>,
     buttons: &[Button],
-    text_width: u32,
     text_height: u32,
 ) {
     // Clear background

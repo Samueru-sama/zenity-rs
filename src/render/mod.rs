@@ -2,7 +2,7 @@ mod text;
 
 pub(crate) use text::Font;
 
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapMut, PixmapRef, Rect, Transform};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapRef, Rect, Transform};
 
 /// A canvas backed by a tiny-skia Pixmap.
 /// Stores pixels in RGBA format internally, but can convert to ARGB for X11/Wayland.
@@ -103,10 +103,6 @@ impl Canvas {
         argb
     }
 
-    /// Returns a mutable reference to the underlying pixmap.
-    pub fn pixmap_mut(&mut self) -> PixmapMut<'_> {
-        self.pixmap.as_mut()
-    }
 }
 
 /// Creates a rounded rectangle path.
@@ -173,7 +169,3 @@ pub const fn rgb(r: u8, g: u8, b: u8) -> Rgba {
     Rgba::rgb(r, g, b)
 }
 
-/// Convenience function to create an RGBA color.
-pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba {
-    Rgba::new(r, g, b, a)
-}

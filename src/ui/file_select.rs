@@ -26,7 +26,6 @@ const ICON_SIZE: u32 = 20;
 // Column widths
 const NAME_COL_WIDTH: u32 = 280;
 const SIZE_COL_WIDTH: u32 = 80;
-const DATE_COL_WIDTH: u32 = 120;
 
 /// File selection dialog result.
 #[derive(Debug, Clone)]
@@ -395,7 +394,7 @@ impl FileSelectBuilder {
                 );
                 // Thumb
                 canvas.fill_rounded_rect(
-                    scrollbar_x as f32, (list_y as f32 + thumb_y),
+                    scrollbar_x as f32, list_y as f32 + thumb_y,
                     6.0, thumb_h,
                     3.0, colors.input_border,
                 );

@@ -1,10 +1,10 @@
-//! rask - Display simple GUI dialogs from the command line.
+//! zenity-rs - Display simple GUI dialogs from the command line.
 
 use std::process::ExitCode;
 
 use lexopt::prelude::*;
 
-use rask::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, Icon, ListResult, ProgressResult, calendar, entry, file_select, list, message, password, progress};
+use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, Icon, ListResult, ProgressResult, calendar, entry, file_select, list, message, password, progress};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -12,7 +12,7 @@ fn main() -> ExitCode {
     match run() {
         Ok(code) => ExitCode::from(code as u8),
         Err(e) => {
-            eprintln!("rask: {e}");
+            eprintln!("zenity-rs: {e}");
             ExitCode::from(100)
         }
     }
@@ -25,6 +25,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut title = String::new();
     let mut text = String::new();
     let mut entry_text = String::new();
+    let mut timeout: Option<u32> = None;
 
     // Progress options
     let mut percentage: u32 = 0;
@@ -57,7 +58,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 return Ok(0);
             }
             Long("version") => {
-                println!("rask {VERSION}");
+                println!("zenity-rs {VERSION}");
                 return Ok(0);
             }
 
@@ -83,6 +84,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                     dialog_type = Some(DialogType::Password);
                 }
             }
+            Long("timeout") => timeout = Some(parser.value()?.string()?.parse()?),
 
             // Progress options
             Long("percentage") => percentage = parser.value()?.string()?.parse()?,
@@ -123,39 +125,51 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     // Build and show the dialog
     match dialog_type {
         DialogType::Info => {
-            let result = message()
+            let mut builder = message()
                 .title(if title.is_empty() { "Information" } else { &title })
                 .text(&text)
                 .icon(Icon::Info)
-                .buttons(ButtonPreset::Ok)
-                .show()?;
+                .buttons(ButtonPreset::Ok);
+            if let Some(t) = timeout {
+                builder = builder.timeout(t);
+            }
+            let result = builder.show()?;
             Ok(result.exit_code())
         }
         DialogType::Warning => {
-            let result = message()
+            let mut builder = message()
                 .title(if title.is_empty() { "Warning" } else { &title })
                 .text(&text)
                 .icon(Icon::Warning)
-                .buttons(ButtonPreset::Ok)
-                .show()?;
+                .buttons(ButtonPreset::Ok);
+            if let Some(t) = timeout {
+                builder = builder.timeout(t);
+            }
+            let result = builder.show()?;
             Ok(result.exit_code())
         }
         DialogType::Error => {
-            let result = message()
+            let mut builder = message()
                 .title(if title.is_empty() { "Error" } else { &title })
                 .text(&text)
                 .icon(Icon::Error)
-                .buttons(ButtonPreset::Ok)
-                .show()?;
+                .buttons(ButtonPreset::Ok);
+            if let Some(t) = timeout {
+                builder = builder.timeout(t);
+            }
+            let result = builder.show()?;
             Ok(result.exit_code())
         }
         DialogType::Question => {
-            let result = message()
+            let mut builder = message()
                 .title(if title.is_empty() { "Question" } else { &title })
                 .text(&text)
                 .icon(Icon::Question)
-                .buttons(ButtonPreset::YesNo)
-                .show()?;
+                .buttons(ButtonPreset::YesNo);
+            if let Some(t) = timeout {
+                builder = builder.timeout(t);
+            }
+            let result = builder.show()?;
             Ok(result.exit_code())
         }
         DialogType::Entry => {
@@ -310,10 +324,10 @@ enum DialogType {
 
 fn print_help() {
     println!(
-        r#"rask {VERSION} - Display simple GUI dialogs from the command line
+        r#"zenity-rs {VERSION} - Display simple GUI dialogs from the command line
 
 USAGE:
-    rask [OPTIONS] --<dialog-type> [VALUES...]
+    zenity-rs [OPTIONS] --<dialog-type> [VALUES...]
 
 DIALOG TYPES:
     --info              Display an information dialog
@@ -330,6 +344,7 @@ DIALOG TYPES:
 OPTIONS:
     --title=TEXT        Set the dialog title
     --text=TEXT         Set the dialog text/prompt
+    --timeout=N         Auto-close after N seconds (exit code 5)
     --entry-text=TEXT   Set default text for entry dialog
     --hide-text         Hide entered text (password mode)
     --percentage=N      Initial progress percentage (0-100)
@@ -348,19 +363,20 @@ OPTIONS:
     --version           Print version information
 
 EXAMPLES:
-    rask --info --text="Operation completed"
-    rask --question --text="Do you want to continue?"
-    rask --entry --text="Enter your name:" --entry-text="John"
-    rask --password --text="Enter password:"
-    echo "50" | rask --progress --text="Working..."
-    rask --file-selection --title="Open File"
-    rask --list --column="Name" --column="Size" file1 10KB file2 20KB
-    rask --list --checklist --column="Select" --column="Item" FALSE A TRUE B
-    rask --calendar --text="Select date:"
+    zenity-rs --info --text="Operation completed"
+    zenity-rs --question --text="Do you want to continue?" --timeout=10
+    zenity-rs --entry --text="Enter your name:" --entry-text="John"
+    zenity-rs --password --text="Enter password:"
+    echo "50" | zenity-rs --progress --text="Working..."
+    zenity-rs --file-selection --title="Open File"
+    zenity-rs --list --column="Name" --column="Size" file1 10KB file2 20KB
+    zenity-rs --list --checklist --column="Select" --column="Item" FALSE A TRUE B
+    zenity-rs --calendar --text="Select date:"
 
 EXIT CODES:
     0   OK/Yes clicked, text entered, file/date selected
     1   Cancel/No clicked
+    5   Timeout reached
     255 Dialog was closed
     100 Error occurred
 "#
