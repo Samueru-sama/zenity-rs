@@ -452,6 +452,10 @@ impl Window for X11Window {
 
         Ok(())
     }
+
+    fn scale_factor(&self) -> f32 {
+        super::DEFAULT_SCALE
+    }
 }
 
 fn mouse_button(detail: u8) -> Option<MouseButton> {

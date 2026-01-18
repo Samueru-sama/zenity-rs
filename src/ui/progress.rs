@@ -13,8 +13,10 @@ use crate::ui::widgets::Widget;
 use crate::ui::widgets::button::Button;
 use crate::ui::widgets::progress_bar::ProgressBar;
 
-const PADDING: u32 = 20;
-const BAR_WIDTH: u32 = 300;
+const BASE_PADDING: u32 = 20;
+const BASE_BAR_WIDTH: u32 = 300;
+const BASE_TEXT_HEIGHT: u32 = 20;
+const BASE_BUTTON_HEIGHT: u32 = 32;
 
 /// Progress dialog result.
 #[derive(Debug, Clone)]
@@ -99,13 +101,45 @@ impl ProgressBuilder {
 
     pub fn show(self) -> Result<ProgressResult, Error> {
         let colors = self.colors.unwrap_or_else(|| crate::ui::detect_theme());
-        let font = Font::load();
 
-        // Create cancel button
-        let mut cancel_button = Button::new("Cancel", &font);
+        // First pass: calculate LOGICAL dimensions using scale 1.0
+        let temp_font = Font::load(1.0);
+        let temp_button = Button::new("Cancel", &temp_font, 1.0);
+        let temp_bar = ProgressBar::new(BASE_BAR_WIDTH, 1.0);
 
-        // Create progress bar
-        let mut progress_bar = ProgressBar::new(BAR_WIDTH);
+        let logical_width = (BASE_BAR_WIDTH + BASE_PADDING * 2) as u16;
+        let logical_height = (BASE_PADDING * 3 + BASE_TEXT_HEIGHT + 10 + temp_bar.height() + 10 + BASE_BUTTON_HEIGHT) as u16;
+        drop(temp_font);
+        drop(temp_button);
+        drop(temp_bar);
+
+        // Create window with LOGICAL dimensions
+        let mut window = create_window(logical_width, logical_height)?;
+        window.set_title(if self.title.is_empty() {
+            "Progress"
+        } else {
+            &self.title
+        })?;
+
+        // Get the actual scale factor from the window (compositor scale)
+        let scale = window.scale_factor();
+
+        // Now create everything at PHYSICAL scale
+        let font = Font::load(scale);
+        let mut cancel_button = Button::new("Cancel", &font, scale);
+
+        // Scale dimensions for physical rendering
+        let padding = (BASE_PADDING as f32 * scale) as u32;
+        let bar_width = (BASE_BAR_WIDTH as f32 * scale) as u32;
+        let text_height = (BASE_TEXT_HEIGHT as f32 * scale) as u32;
+        let button_height = (BASE_BUTTON_HEIGHT as f32 * scale) as u32;
+
+        // Calculate physical dimensions
+        let physical_width = (logical_width as f32 * scale) as u32;
+        let physical_height = (logical_height as f32 * scale) as u32;
+
+        // Create progress bar at physical scale
+        let mut progress_bar = ProgressBar::new(bar_width, scale);
         progress_bar.set_percentage(self.percentage);
         if self.pulsate {
             progress_bar.set_pulsating(true);
@@ -114,29 +148,17 @@ impl ProgressBuilder {
         // Current status text
         let mut status_text = self.text.clone();
 
-        // Calculate dimensions
-        let width = (BAR_WIDTH + PADDING * 2) as u16;
-        let height = (PADDING * 3 + 20 + 10 + progress_bar.height() + 10 + 32) as u16;
+        // Position elements in physical coordinates
+        let text_y = padding as i32;
+        let bar_y = text_y + text_height as i32 + 10;
+        progress_bar.set_position(padding as i32, bar_y);
 
-        // Create window
-        let mut window = create_window(width, height)?;
-        window.set_title(if self.title.is_empty() {
-            "Progress"
-        } else {
-            &self.title
-        })?;
-
-        // Position elements
-        let text_y = PADDING as i32;
-        let bar_y = text_y + 20 + 10;
-        progress_bar.set_position(PADDING as i32, bar_y);
-
-        let button_y = bar_y + progress_bar.height() as i32 + 10;
-        let button_x = width as i32 - PADDING as i32 - cancel_button.width() as i32;
+        let button_y = bar_y + progress_bar.height() as i32 + (10.0 * scale) as i32;
+        let button_x = physical_width as i32 - padding as i32 - cancel_button.width() as i32;
         cancel_button.set_position(button_x, button_y);
 
-        // Create canvas
-        let mut canvas = Canvas::new(width as u32, height as u32);
+        // Create canvas at PHYSICAL dimensions
+        let mut canvas = Canvas::new(physical_width, physical_height);
 
         // Start stdin reader thread
         let (tx, rx) = mpsc::channel();
@@ -178,13 +200,15 @@ impl ProgressBuilder {
                     font: &Font,
                     status_text: &str,
                     progress_bar: &ProgressBar,
-                    cancel_button: &Button| {
+                    cancel_button: &Button,
+                    padding: u32,
+                    text_y: i32| {
             canvas.fill(colors.window_bg);
 
             // Draw status text
             if !status_text.is_empty() {
                 let text_canvas = font.render(status_text).with_color(colors.text).finish();
-                canvas.draw_canvas(&text_canvas, PADDING as i32, text_y);
+                canvas.draw_canvas(&text_canvas, padding as i32, text_y);
             }
 
             // Draw progress bar
@@ -202,6 +226,8 @@ impl ProgressBuilder {
             &status_text,
             &progress_bar,
             &cancel_button,
+            padding,
+            text_y,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -258,6 +284,8 @@ impl ProgressBuilder {
                             &status_text,
                             &progress_bar,
                             &cancel_button,
+                            padding,
+                            text_y,
                         );
                         window.set_contents(&canvas)?;
                         std::thread::sleep(Duration::from_millis(16));
@@ -293,6 +321,8 @@ impl ProgressBuilder {
                             &status_text,
                             &progress_bar,
                             &cancel_button,
+                            padding,
+                            text_y,
                         );
                         window.set_contents(&canvas)?;
                     }
@@ -315,6 +345,8 @@ impl ProgressBuilder {
                 &status_text,
                 &progress_bar,
                 &cancel_button,
+                padding,
+                text_y,
             );
             window.set_contents(&canvas)?;
         }

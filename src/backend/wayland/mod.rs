@@ -13,6 +13,7 @@ use wayland_client::{
         wl_callback::{self, WlCallback},
         wl_compositor::WlCompositor,
         wl_keyboard::{self, WlKeyboard},
+        wl_output::{self, WlOutput},
         wl_pointer::{self, WlPointer},
         wl_registry::{self, WlRegistry},
         wl_seat::{self, WlSeat},
@@ -36,6 +37,8 @@ use super::{
 };
 
 use self::shm::ShmPool;
+
+use super::DEFAULT_SCALE;
 
 /// Wayland connection wrapper.
 pub(crate) struct Connection {
@@ -62,6 +65,7 @@ pub(super) struct WaylandState {
     shm: Option<WlShm>,
     xdg_wm_base: Option<XdgWmBase>,
     seat: Option<WlSeat>,
+    output: Option<WlOutput>,
 
     // Input devices
     pointer: Option<WlPointer>,
@@ -75,6 +79,11 @@ pub(super) struct WaylandState {
     // Configuration state
     configured: bool,
     closed: bool,
+
+    // Scale factor from output (integer scale from wl_output)
+    output_scale: i32,
+    // Effective scale factor used for rendering (set when window is created)
+    effective_scale: i32,
 
     // Input state
     last_serial: u32,
@@ -95,6 +104,7 @@ impl WaylandState {
             shm: None,
             xdg_wm_base: None,
             seat: None,
+            output: None,
             pointer: None,
             keyboard: None,
             surface: None,
@@ -102,11 +112,23 @@ impl WaylandState {
             xdg_toplevel: None,
             configured: false,
             closed: false,
+            output_scale: 1,
+            effective_scale: 1,
             last_serial: 0,
             modifier_mask: kbvm::ModifierMask::NONE,
             keyboard_group: 0,
             lookup_table: None,
             pending_events: VecDeque::new(),
+        }
+    }
+
+    /// Returns the effective scale factor to use for rendering.
+    /// Uses compositor scale if > 1, otherwise defaults to DEFAULT_SCALE.
+    fn scale_factor(&self) -> f32 {
+        if self.output_scale > 1 {
+            self.output_scale as f32
+        } else {
+            DEFAULT_SCALE
         }
     }
 }
@@ -118,8 +140,16 @@ pub(crate) struct WaylandWindow {
     state: WaylandState,
     shm_pool: ShmPool,
     buffer: WlBuffer,
-    width: i32,
-    height: i32,
+    /// Logical width (what the user requested)
+    logical_width: i32,
+    /// Logical height (what the user requested)
+    logical_height: i32,
+    /// Physical width (logical * scale)
+    physical_width: i32,
+    /// Physical height (logical * scale)
+    physical_height: i32,
+    /// Scale factor for this window
+    scale: i32,
 }
 
 impl WaylandWindow {
@@ -175,14 +205,29 @@ impl WaylandWindow {
             event_queue.blocking_dispatch(&mut state)?;
         }
 
-        // Create shared memory pool and buffer
-        let width_i32 = width as i32;
-        let height_i32 = height as i32;
-        let stride = width_i32 * 4; // 4 bytes per pixel (ARGB8888)
-        let size = (stride * height_i32) as usize;
+        // Do another roundtrip to ensure we have output scale
+        event_queue.roundtrip(&mut state)?;
+
+        // Get the scale factor - use compositor scale if > 1, otherwise use our default
+        let scale = state.scale_factor().ceil() as i32;
+        // Store the effective scale so pointer events can use the same value
+        state.effective_scale = scale;
+
+        // Calculate physical dimensions (what we actually render)
+        let logical_width = width as i32;
+        let logical_height = height as i32;
+        let physical_width = logical_width * scale;
+        let physical_height = logical_height * scale;
+
+        // Create shared memory pool and buffer at PHYSICAL size
+        let stride = physical_width * 4; // 4 bytes per pixel (ARGB8888)
+        let size = (stride * physical_height) as usize;
 
         let shm_pool = ShmPool::new(&shm, size, &qh)?;
-        let buffer = shm_pool.create_buffer(width_i32, height_i32, stride, &qh);
+        let buffer = shm_pool.create_buffer(physical_width, physical_height, stride, &qh);
+
+        // Set buffer scale so compositor knows we're rendering at higher resolution
+        surface.set_buffer_scale(scale);
 
         // Get input devices from seat
         if let Some(seat) = &state.seat.clone() {
@@ -196,8 +241,11 @@ impl WaylandWindow {
             state,
             shm_pool,
             buffer,
-            width: width_i32,
-            height: height_i32,
+            logical_width,
+            logical_height,
+            physical_width,
+            physical_height,
+            scale,
         })
     }
 }
@@ -216,10 +264,10 @@ impl Window for WaylandWindow {
         let dst = self.shm_pool.data_mut();
         dst[..src.len()].copy_from_slice(&src);
 
-        // Attach buffer and damage the surface
+        // Attach buffer and damage the surface (use physical dimensions)
         if let Some(surface) = &self.state.surface {
             surface.attach(Some(&self.buffer), 0, 0);
-            surface.damage_buffer(0, 0, self.width, self.height);
+            surface.damage_buffer(0, 0, self.physical_width, self.physical_height);
             surface.commit();
         }
 
@@ -268,6 +316,10 @@ impl Window for WaylandWindow {
         }
         Ok(())
     }
+
+    fn scale_factor(&self) -> f32 {
+        self.scale as f32
+    }
 }
 
 // Registry handler - binds globals
@@ -299,6 +351,12 @@ impl Dispatch<WlRegistry, ()> for WaylandState {
                 "wl_seat" => {
                     state.seat = Some(registry.bind(name, version.min(9), qh, ()));
                 }
+                "wl_output" => {
+                    // Bind wl_output version 2+ to get scale events
+                    if version >= 2 {
+                        state.output = Some(registry.bind(name, version.min(4), qh, ()));
+                    }
+                }
                 _ => {}
             }
         }
@@ -327,6 +385,21 @@ impl Dispatch<WlShm, ()> for WaylandState {
         _: &WaylandConnection,
         _: &QueueHandle<Self>,
     ) {
+    }
+}
+
+impl Dispatch<WlOutput, ()> for WaylandState {
+    fn event(
+        state: &mut Self,
+        _: &WlOutput,
+        event: wl_output::Event,
+        _: &(),
+        _: &WaylandConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_output::Event::Scale { factor } = event {
+            state.output_scale = factor;
+        }
     }
 }
 
@@ -451,6 +524,10 @@ impl Dispatch<WlPointer, ()> for WaylandState {
         _: &WaylandConnection,
         _: &QueueHandle<Self>,
     ) {
+        // Use effective_scale for converting logical coordinates to physical
+        // This matches the scale used when creating the window buffer
+        let scale = state.effective_scale;
+
         match event {
             wl_pointer::Event::Enter {
                 serial,
@@ -459,11 +536,12 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                 ..
             } => {
                 state.last_serial = serial;
+                // Scale coordinates from logical to physical
                 state
                     .pending_events
                     .push_back(WindowEvent::CursorEnter(CursorPos {
-                        x: surface_x as i16,
-                        y: surface_y as i16,
+                        x: (surface_x * scale as f64) as i16,
+                        y: (surface_y * scale as f64) as i16,
                     }));
             }
             wl_pointer::Event::Leave { serial, .. } => {
@@ -475,11 +553,12 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                 surface_y,
                 ..
             } => {
+                // Scale coordinates from logical to physical
                 state
                     .pending_events
                     .push_back(WindowEvent::CursorMove(CursorPos {
-                        x: surface_x as i16,
-                        y: surface_y as i16,
+                        x: (surface_x * scale as f64) as i16,
+                        y: (surface_y * scale as f64) as i16,
                     }));
             }
             wl_pointer::Event::Button {

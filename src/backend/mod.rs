@@ -1,12 +1,15 @@
-#[cfg(feature = "x11")]
-pub(crate) mod x11;
 #[cfg(feature = "wayland")]
 pub(crate) mod wayland;
+#[cfg(feature = "x11")]
+pub(crate) mod x11;
 
 use crate::error::Error;
 use crate::render::Canvas;
 
 use bitflags::bitflags;
+
+/// Default scale factor for rendering
+pub(crate) const DEFAULT_SCALE: f32 = 1.0;
 
 /// Trait for connecting to a display server.
 pub(crate) trait DisplayConnection: Sized {
@@ -24,6 +27,7 @@ pub(crate) trait Window {
     fn wait_for_event(&mut self) -> Result<WindowEvent, Error>;
     fn poll_for_event(&mut self) -> Result<Option<WindowEvent>, Error>;
     fn start_drag(&mut self) -> Result<(), Error>;
+    fn scale_factor(&self) -> f32;
 }
 
 /// Events that can be emitted by a window.
@@ -141,6 +145,15 @@ impl Window for AnyWindow {
             AnyWindow::X11(w) => w.start_drag(),
             #[cfg(feature = "wayland")]
             AnyWindow::Wayland(w) => w.start_drag(),
+        }
+    }
+
+    fn scale_factor(&self) -> f32 {
+        match self {
+            #[cfg(feature = "x11")]
+            AnyWindow::X11(w) => w.scale_factor(),
+            #[cfg(feature = "wayland")]
+            AnyWindow::Wayland(w) => w.scale_factor(),
         }
     }
 }

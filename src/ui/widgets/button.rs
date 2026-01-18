@@ -13,26 +13,34 @@ pub(crate) struct Button {
     y: i32,
     width: u32,
     height: u32,
+    radius: f32,
     hovered: bool,
     pressed: bool,
     clicked: bool,
 }
 
-const BUTTON_HEIGHT: u32 = 32;
-const BUTTON_PADDING: u32 = 24;
-const BUTTON_RADIUS: f32 = 5.0;
+const BASE_BUTTON_HEIGHT: u32 = 32;
+const BASE_BUTTON_PADDING: u32 = 24;
+const BASE_BUTTON_RADIUS: f32 = 5.0;
+const BASE_MIN_BUTTON_WIDTH: u32 = 80;
 
 impl Button {
-    pub fn new(label: &str, font: &Font) -> Self {
+    pub fn new(label: &str, font: &Font, scale: f32) -> Self {
+        let button_padding = (BASE_BUTTON_PADDING as f32 * scale) as u32;
+        let button_height = (BASE_BUTTON_HEIGHT as f32 * scale) as u32;
+        let min_button_width = (BASE_MIN_BUTTON_WIDTH as f32 * scale) as u32;
+        let button_radius = BASE_BUTTON_RADIUS * scale;
+
         let (text_w, _) = font.render(label).measure();
-        let width = (text_w as u32 + BUTTON_PADDING * 2).max(80);
+        let width = (text_w as u32 + button_padding * 2).max(min_button_width);
 
         Self {
             label: label.to_string(),
             x: 0,
             y: 0,
             width,
-            height: BUTTON_HEIGHT,
+            height: button_height,
+            radius: button_radius,
             hovered: false,
             pressed: false,
             clicked: false,
@@ -63,7 +71,7 @@ impl Button {
             self.y as f32,
             self.width as f32,
             self.height as f32,
-            BUTTON_RADIUS,
+            self.radius,
             bg_color,
         );
 
@@ -73,7 +81,7 @@ impl Button {
             self.y as f32,
             self.width as f32,
             self.height as f32,
-            BUTTON_RADIUS,
+            self.radius,
             colors.button_outline,
             1.0,
         );

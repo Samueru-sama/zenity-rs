@@ -8,9 +8,9 @@ use crate::ui::widgets::Widget;
 use crate::ui::widgets::button::Button;
 use crate::ui::widgets::text_input::TextInput;
 
-const PADDING: u32 = 20;
-const BUTTON_SPACING: u32 = 10;
-const INPUT_WIDTH: u32 = 300;
+const BASE_PADDING: u32 = 20;
+const BASE_BUTTON_SPACING: u32 = 10;
+const BASE_INPUT_WIDTH: u32 = 300;
 
 /// Entry dialog result.
 #[derive(Debug, Clone)]
@@ -80,69 +80,101 @@ impl EntryBuilder {
 
     pub fn show(self) -> Result<EntryResult, Error> {
         let colors = self.colors.unwrap_or_else(|| crate::ui::detect_theme());
-        let font = Font::load();
 
-        // Create buttons
-        let mut ok_button = Button::new("OK", &font);
-        let mut cancel_button = Button::new("Cancel", &font);
-
-        // Create text input
-        let mut input = TextInput::new(INPUT_WIDTH)
-            .with_password(self.hide_text)
-            .with_default_text(&self.entry_text);
-        input.set_focus(true);
-
-        // Render prompt text
-        let prompt_canvas = if !self.text.is_empty() {
-            Some(font.render(&self.text).with_color(colors.text).finish())
+        // First pass: calculate LOGICAL dimensions using scale 1.0
+        let temp_font = Font::load(1.0);
+        let temp_ok = Button::new("OK", &temp_font, 1.0);
+        let temp_cancel = Button::new("Cancel", &temp_font, 1.0);
+        let temp_prompt_height = if !self.text.is_empty() {
+            temp_font.render(&self.text).finish().height()
         } else {
-            None
+            0
         };
+        let temp_input = TextInput::new(BASE_INPUT_WIDTH);
 
-        let prompt_height = prompt_canvas.as_ref().map(|c| c.height()).unwrap_or(0);
-
-        // Calculate dimensions
-        let buttons_width = ok_button.width() + cancel_button.width() + BUTTON_SPACING;
-        let content_width = INPUT_WIDTH.max(buttons_width);
-        let width = (content_width + PADDING * 2) as u16;
-
-        let height = (PADDING * 3
-            + prompt_height
-            + (if prompt_height > 0 { 10 } else { 0 })
-            + input.height()
+        let logical_buttons_width = temp_ok.width() + temp_cancel.width() + BASE_BUTTON_SPACING;
+        let logical_content_width = BASE_INPUT_WIDTH.max(logical_buttons_width);
+        let logical_width = (logical_content_width + BASE_PADDING * 2) as u16;
+        let logical_height = (BASE_PADDING * 3
+            + temp_prompt_height
+            + (if temp_prompt_height > 0 { 10 } else { 0 })
+            + temp_input.height()
             + 10
             + 32) as u16;
 
-        // Create window
-        let mut window = create_window(width, height)?;
+        drop(temp_font);
+        drop(temp_ok);
+        drop(temp_cancel);
+        drop(temp_input);
+
+        // Create window with LOGICAL dimensions
+        let mut window = create_window(logical_width, logical_height)?;
         window.set_title(if self.title.is_empty() {
             "Entry"
         } else {
             &self.title
         })?;
 
-        // Position elements
-        let mut y = PADDING as i32;
+        // Get the actual scale factor from the window (compositor scale)
+        let scale = window.scale_factor();
 
-        // Prompt text position
+        // Now create everything at PHYSICAL scale
+        let font = Font::load(scale);
+
+        // Scale dimensions for physical rendering
+        let padding = (BASE_PADDING as f32 * scale) as u32;
+        let button_spacing = (BASE_BUTTON_SPACING as f32 * scale) as u32;
+        let input_width = (BASE_INPUT_WIDTH as f32 * scale) as u32;
+
+        // Create buttons at physical scale
+        let mut ok_button = Button::new("OK", &font, scale);
+        let mut cancel_button = Button::new("Cancel", &font, scale);
+
+        // Create text input at physical scale
+        let mut input = TextInput::new(input_width)
+            .with_password(self.hide_text)
+            .with_default_text(&self.entry_text);
+        input.set_focus(true);
+
+        // Render prompt text at physical scale
+        let prompt_canvas = if !self.text.is_empty() {
+            Some(font.render(&self.text).with_color(colors.text).finish())
+        } else {
+            None
+        };
+        let prompt_height = prompt_canvas.as_ref().map(|c| c.height()).unwrap_or(0);
+
+        // Calculate physical dimensions
+        let buttons_width = ok_button.width() + cancel_button.width() + button_spacing;
+        let content_width = input_width.max(buttons_width);
+        let width = content_width + padding * 2;
+        let height = padding * 3
+            + prompt_height
+            + (if prompt_height > 0 { (10.0 * scale) as u32 } else { 0 })
+            + input.height()
+            + (10.0 * scale) as u32
+            + (32.0 * scale) as u32;
+
+        // Position elements in physical coordinates
+        let mut y = padding as i32;
         let prompt_y = y;
         if prompt_height > 0 {
-            y += prompt_height as i32 + 10;
+            y += prompt_height as i32 + (10.0 * scale) as i32;
         }
 
         // Input position
-        input.set_position(PADDING as i32, y);
-        y += input.height() as i32 + 10;
+        input.set_position(padding as i32, y);
+        y += input.height() as i32 + (10.0 * scale) as i32;
 
         // Button positions (right-aligned)
-        let mut button_x = width as i32 - PADDING as i32;
+        let mut button_x = width as i32 - padding as i32;
         button_x -= cancel_button.width() as i32;
         cancel_button.set_position(button_x, y);
-        button_x -= BUTTON_SPACING as i32 + ok_button.width() as i32;
+        button_x -= button_spacing as i32 + ok_button.width() as i32;
         ok_button.set_position(button_x, y);
 
-        // Create canvas
-        let mut canvas = Canvas::new(width as u32, height as u32);
+        // Create canvas at PHYSICAL dimensions
+        let mut canvas = Canvas::new(width, height);
 
         // Draw function
         let draw = |canvas: &mut Canvas,
@@ -151,12 +183,14 @@ impl EntryBuilder {
                     prompt_canvas: &Option<Canvas>,
                     input: &TextInput,
                     ok_button: &Button,
-                    cancel_button: &Button| {
+                    cancel_button: &Button,
+                    padding: u32,
+                    prompt_y: i32| {
             canvas.fill(colors.window_bg);
 
             // Draw prompt
             if let Some(prompt) = prompt_canvas {
-                canvas.draw_canvas(prompt, PADDING as i32, prompt_y);
+                canvas.draw_canvas(prompt, padding as i32, prompt_y);
             }
 
             // Draw input
@@ -176,6 +210,8 @@ impl EntryBuilder {
             &input,
             &ok_button,
             &cancel_button,
+            padding,
+            prompt_y,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -197,6 +233,8 @@ impl EntryBuilder {
                         &input,
                         &ok_button,
                         &cancel_button,
+                        padding,
+                        prompt_y,
                     );
                     window.set_contents(&canvas)?;
                 }
@@ -264,6 +302,8 @@ impl EntryBuilder {
                     &input,
                     &ok_button,
                     &cancel_button,
+                    padding,
+                    prompt_y,
                 );
                 window.set_contents(&canvas)?;
             }

@@ -12,20 +12,20 @@ use crate::ui::widgets::Widget;
 use crate::ui::widgets::button::Button;
 use crate::ui::widgets::text_input::TextInput;
 
-// Layout constants
-const WINDOW_WIDTH: u32 = 700;
-const WINDOW_HEIGHT: u32 = 500;
-const PADDING: u32 = 12;
-const SIDEBAR_WIDTH: u32 = 160;
-const TOOLBAR_HEIGHT: u32 = 36;
-const PATH_BAR_HEIGHT: u32 = 32;
-const SEARCH_WIDTH: u32 = 200;
-const ITEM_HEIGHT: u32 = 28;
-const ICON_SIZE: u32 = 20;
+// Layout constants (logical, at scale 1.0)
+const BASE_WINDOW_WIDTH: u32 = 700;
+const BASE_WINDOW_HEIGHT: u32 = 500;
+const BASE_PADDING: u32 = 12;
+const BASE_SIDEBAR_WIDTH: u32 = 160;
+const BASE_TOOLBAR_HEIGHT: u32 = 36;
+const BASE_PATH_BAR_HEIGHT: u32 = 32;
+const BASE_SEARCH_WIDTH: u32 = 200;
+const BASE_ITEM_HEIGHT: u32 = 28;
+const BASE_ICON_SIZE: u32 = 20;
 
-// Column widths
-const NAME_COL_WIDTH: u32 = 280;
-const SIZE_COL_WIDTH: u32 = 80;
+// Column widths (logical)
+const BASE_NAME_COL_WIDTH: u32 = 280;
+const BASE_SIZE_COL_WIDTH: u32 = 80;
 
 /// File selection dialog result.
 #[derive(Debug, Clone)]
@@ -118,17 +118,44 @@ impl FileSelectBuilder {
 
     pub fn show(self) -> Result<FileSelectResult, Error> {
         let colors = self.colors.unwrap_or_else(|| crate::ui::detect_theme());
-        let font = Font::load();
+
+        // Create window with LOGICAL dimensions first
+        let mut window = create_window(BASE_WINDOW_WIDTH as u16, BASE_WINDOW_HEIGHT as u16)?;
+        let title = if self.title.is_empty() {
+            if self.directory { "Select Directory" }
+            else if self.save { "Save File" }
+            else { "Open File" }
+        } else {
+            &self.title
+        };
+        window.set_title(title)?;
+
+        // Get the actual scale factor from the window (compositor scale)
+        let scale = window.scale_factor();
+
+        // Now create everything at PHYSICAL scale
+        let font = Font::load(scale);
+
+        // Scale dimensions for physical rendering
+        let window_width = (BASE_WINDOW_WIDTH as f32 * scale) as u32;
+        let window_height = (BASE_WINDOW_HEIGHT as f32 * scale) as u32;
+        let padding = (BASE_PADDING as f32 * scale) as u32;
+        let sidebar_width = (BASE_SIDEBAR_WIDTH as f32 * scale) as u32;
+        let toolbar_height = (BASE_TOOLBAR_HEIGHT as f32 * scale) as u32;
+        let path_bar_height = (BASE_PATH_BAR_HEIGHT as f32 * scale) as u32;
+        let search_width = (BASE_SEARCH_WIDTH as f32 * scale) as u32;
+        let item_height = (BASE_ITEM_HEIGHT as f32 * scale) as u32;
+        let name_col_width = (BASE_NAME_COL_WIDTH as f32 * scale) as u32;
+        let size_col_width = (BASE_SIZE_COL_WIDTH as f32 * scale) as u32;
 
         // Build quick access locations
         let quick_access = build_quick_access();
 
-        // Create UI elements
-        let mut ok_button = Button::new(if self.save { "Save" } else { "Open" }, &font);
-        let mut cancel_button = Button::new("Cancel", &font);
+        // Create UI elements at physical scale
+        let mut ok_button = Button::new(if self.save { "Save" } else { "Open" }, &font, scale);
+        let mut cancel_button = Button::new("Cancel", &font, scale);
 
         // Search input
-        let search_width = SEARCH_WIDTH;
         let mut search_input = TextInput::new(search_width)
             .with_placeholder("Search...");
 
@@ -154,49 +181,40 @@ impl FileSelectBuilder {
         load_directory(&current_dir, &mut all_entries, self.directory, show_hidden);
         update_filtered(&all_entries, &search_text, &mut filtered_entries);
 
-        // Create window
-        let mut window = create_window(WINDOW_WIDTH as u16, WINDOW_HEIGHT as u16)?;
-        let title = if self.title.is_empty() {
-            if self.directory { "Select Directory" }
-            else if self.save { "Save File" }
-            else { "Open File" }
-        } else {
-            &self.title
-        };
-        window.set_title(title)?;
+        // Calculate layout in physical coordinates
+        let sidebar_x = padding as i32;
+        let sidebar_y = (padding + toolbar_height + (8.0 * scale) as u32) as i32;
+        let sidebar_h = window_height - padding * 2 - toolbar_height - (8.0 * scale) as u32 - (44.0 * scale) as u32;
 
-        // Calculate layout
-        let sidebar_x = PADDING as i32;
-        let sidebar_y = (PADDING + TOOLBAR_HEIGHT + 8) as i32;
-        let sidebar_h = WINDOW_HEIGHT - PADDING * 2 - TOOLBAR_HEIGHT - 8 - 44;
-
-        let main_x = (PADDING + SIDEBAR_WIDTH + 12) as i32;
+        let main_x = (padding + sidebar_width + (12.0 * scale) as u32) as i32;
         let main_y = sidebar_y;
-        let main_w = WINDOW_WIDTH - PADDING * 2 - SIDEBAR_WIDTH - 12;
+        let main_w = window_width - padding * 2 - sidebar_width - (12.0 * scale) as u32;
         let main_h = sidebar_h;
 
-        let list_y = main_y + PATH_BAR_HEIGHT as i32 + 28; // +28 for column headers
-        let list_h = main_h - PATH_BAR_HEIGHT - 28;
-        let visible_items = (list_h / ITEM_HEIGHT) as usize;
+        let header_offset = (28.0 * scale) as u32; // Column headers
+        let list_y = main_y + path_bar_height as i32 + header_offset as i32;
+        let list_h = main_h - path_bar_height - header_offset;
+        let visible_items = (list_h / item_height) as usize;
 
         // Position buttons
-        let button_y = (WINDOW_HEIGHT - PADDING - 32) as i32;
-        let mut bx = WINDOW_WIDTH as i32 - PADDING as i32;
+        let button_y = (window_height - padding - (32.0 * scale) as u32) as i32;
+        let mut bx = window_width as i32 - padding as i32;
         bx -= cancel_button.width() as i32;
         cancel_button.set_position(bx, button_y);
-        bx -= 10 + ok_button.width() as i32;
+        bx -= (10.0 * scale) as i32 + ok_button.width() as i32;
         ok_button.set_position(bx, button_y);
 
         // Position search input
-        let search_x = WINDOW_WIDTH as i32 - PADDING as i32 - search_width as i32;
-        let search_y = PADDING as i32 + 2;
+        let search_x = window_width as i32 - padding as i32 - search_width as i32;
+        let search_y = padding as i32 + (2.0 * scale) as i32;
         search_input.set_position(search_x, search_y);
 
-        let mut canvas = Canvas::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+        // Create canvas at PHYSICAL dimensions
+        let mut canvas = Canvas::new(window_width, window_height);
         let mut mouse_x = 0i32;
         let mut mouse_y = 0i32;
 
-        // Draw function
+        // Draw function - captures scaled variables from enclosing scope
         let draw = |canvas: &mut Canvas,
                     colors: &Colors,
                     font: &Font,
@@ -219,25 +237,25 @@ impl FileSelectBuilder {
 
             // Toolbar background
             let toolbar_bg = darken(colors.window_bg, 0.03);
-            canvas.fill_rect(0.0, 0.0, WINDOW_WIDTH as f32, (TOOLBAR_HEIGHT + PADDING) as f32, toolbar_bg);
+            canvas.fill_rect(0.0, 0.0, window_width as f32, (toolbar_height + padding) as f32, toolbar_bg);
 
             // Navigation buttons
-            let nav_y = PADDING as i32 + 4;
+            let nav_y = padding as i32 + (4.0 * scale) as i32;
             let can_back = history_index > 0;
             let can_forward = history_index + 1 < history.len();
 
             // Back button
-            draw_nav_button(canvas, PADDING as i32, nav_y, "<", can_back, colors, font);
+            draw_nav_button(canvas, padding as i32, nav_y, "<", can_back, colors, font, scale);
             // Forward button
-            draw_nav_button(canvas, (PADDING + 32) as i32, nav_y, ">", can_forward, colors, font);
+            draw_nav_button(canvas, (padding as f32 + 32.0 * scale) as i32, nav_y, ">", can_forward, colors, font, scale);
             // Up button
             let can_up = current_dir.parent().is_some();
-            draw_nav_button(canvas, (PADDING + 68) as i32, nav_y, "^", can_up, colors, font);
+            draw_nav_button(canvas, (padding as f32 + 68.0 * scale) as i32, nav_y, "^", can_up, colors, font, scale);
             // Home button
-            draw_nav_button(canvas, (PADDING + 104) as i32, nav_y, "~", true, colors, font);
+            draw_nav_button(canvas, (padding as f32 + 104.0 * scale) as i32, nav_y, "~", true, colors, font, scale);
             // Hidden files toggle
-            let toggle_x = (PADDING + 150) as i32;
-            draw_toggle(canvas, toggle_x, nav_y, ".*", show_hidden, colors, font);
+            let toggle_x = (padding as f32 + 150.0 * scale) as i32;
+            draw_toggle(canvas, toggle_x, nav_y, ".*", show_hidden, colors, font, scale);
 
             // Search input
             search_input.draw_to(canvas, colors, font);
@@ -246,69 +264,69 @@ impl FileSelectBuilder {
             let sidebar_bg = darken(colors.window_bg, 0.02);
             canvas.fill_rounded_rect(
                 sidebar_x as f32, sidebar_y as f32,
-                SIDEBAR_WIDTH as f32, sidebar_h as f32,
-                6.0, sidebar_bg,
+                sidebar_width as f32, sidebar_h as f32,
+                6.0 * scale, sidebar_bg,
             );
 
             // Quick access items
             for (i, qa) in quick_access.iter().enumerate() {
-                let y = sidebar_y + 8 + (i as i32 * 32);
+                let y = sidebar_y + (8.0 * scale) as i32 + (i as i32 * (32.0 * scale) as i32);
                 let is_hovered = hovered_quick_access == Some(i);
                 let is_current = qa.path == current_dir;
 
                 if is_current {
                     canvas.fill_rounded_rect(
-                        (sidebar_x + 4) as f32, y as f32,
-                        (SIDEBAR_WIDTH - 8) as f32, 28.0,
-                        4.0, colors.input_border_focused,
+                        (sidebar_x + (4.0 * scale) as i32) as f32, y as f32,
+                        (sidebar_width - (8.0 * scale) as u32) as f32, 28.0 * scale,
+                        4.0 * scale, colors.input_border_focused,
                     );
                 } else if is_hovered {
                     canvas.fill_rounded_rect(
-                        (sidebar_x + 4) as f32, y as f32,
-                        (SIDEBAR_WIDTH - 8) as f32, 28.0,
-                        4.0, darken(colors.window_bg, 0.05),
+                        (sidebar_x + (4.0 * scale) as i32) as f32, y as f32,
+                        (sidebar_width - (8.0 * scale) as u32) as f32, 28.0 * scale,
+                        4.0 * scale, darken(colors.window_bg, 0.05),
                     );
                 }
 
                 // Icon
-                draw_quick_access_icon(canvas, sidebar_x + 12, y + 4, qa.icon, colors);
+                draw_quick_access_icon(canvas, sidebar_x + (12.0 * scale) as i32, y + (4.0 * scale) as i32, qa.icon, colors, scale);
 
                 // Name
                 let text_color = if is_current { rgb(255, 255, 255) } else { colors.text };
                 let name_canvas = font.render(qa.name).with_color(text_color).finish();
-                canvas.draw_canvas(&name_canvas, sidebar_x + 36, y + 6);
+                canvas.draw_canvas(&name_canvas, sidebar_x + (36.0 * scale) as i32, y + (6.0 * scale) as i32);
             }
 
             // Main area background
             canvas.fill_rounded_rect(
                 main_x as f32, main_y as f32,
                 main_w as f32, main_h as f32,
-                6.0, colors.input_bg,
+                6.0 * scale, colors.input_bg,
             );
 
             // Path bar (breadcrumbs)
-            draw_breadcrumbs(canvas, main_x + 8, main_y + 6, main_w - 16, current_dir, colors, font);
+            draw_breadcrumbs(canvas, main_x + (8.0 * scale) as i32, main_y + (6.0 * scale) as i32, main_w - (16.0 * scale) as u32, current_dir, colors, font);
 
             // Column headers
-            let header_y = main_y + PATH_BAR_HEIGHT as i32;
+            let header_y = main_y + path_bar_height as i32;
             let header_bg = darken(colors.input_bg, 0.03);
             canvas.fill_rect(
                 main_x as f32, header_y as f32,
-                main_w as f32, 26.0,
+                main_w as f32, 26.0 * scale,
                 header_bg,
             );
 
             let header_text = rgb(150, 150, 150);
             let name_header = font.render("Name").with_color(header_text).finish();
-            canvas.draw_canvas(&name_header, main_x + 32, header_y + 5);
+            canvas.draw_canvas(&name_header, main_x + (32.0 * scale) as i32, header_y + (5.0 * scale) as i32);
             let size_header = font.render("Size").with_color(header_text).finish();
-            canvas.draw_canvas(&size_header, main_x + NAME_COL_WIDTH as i32 + 8, header_y + 5);
+            canvas.draw_canvas(&size_header, main_x + name_col_width as i32 + (8.0 * scale) as i32, header_y + (5.0 * scale) as i32);
             let date_header = font.render("Modified").with_color(header_text).finish();
-            canvas.draw_canvas(&date_header, main_x + NAME_COL_WIDTH as i32 + SIZE_COL_WIDTH as i32 + 16, header_y + 5);
+            canvas.draw_canvas(&date_header, main_x + name_col_width as i32 + size_col_width as i32 + (16.0 * scale) as i32, header_y + (5.0 * scale) as i32);
 
             // Separator line
             canvas.fill_rect(
-                main_x as f32, (header_y + 26) as f32,
+                main_x as f32, (header_y + (26.0 * scale) as i32) as f32,
                 main_w as f32, 1.0,
                 colors.input_border,
             );
@@ -317,7 +335,7 @@ impl FileSelectBuilder {
             let list_x = main_x;
             for (vi, &ei) in filtered_entries.iter().skip(scroll_offset).take(visible_items).enumerate() {
                 let entry = &all_entries[ei];
-                let y = list_y + (vi as u32 * ITEM_HEIGHT) as i32;
+                let y = list_y + (vi as u32 * item_height) as i32;
                 let is_selected = selected_index == Some(ei);
                 let is_hovered = hovered_entry == Some(ei);
 
@@ -332,71 +350,71 @@ impl FileSelectBuilder {
                 if is_selected {
                     canvas.fill_rect(
                         (list_x + 2) as f32, y as f32,
-                        (main_w - 4) as f32, ITEM_HEIGHT as f32,
+                        (main_w - 4) as f32, item_height as f32,
                         colors.input_border_focused,
                     );
                 } else if is_hovered {
                     canvas.fill_rect(
                         (list_x + 2) as f32, y as f32,
-                        (main_w - 4) as f32, ITEM_HEIGHT as f32,
+                        (main_w - 4) as f32, item_height as f32,
                         darken(colors.input_bg, 0.06),
                     );
                 } else {
                     canvas.fill_rect(
                         list_x as f32, y as f32,
-                        main_w as f32, ITEM_HEIGHT as f32,
+                        main_w as f32, item_height as f32,
                         row_bg,
                     );
                 }
 
                 // Icon
-                let icon_x = list_x + 8;
-                let icon_y = y + 4;
+                let icon_x = list_x + (8.0 * scale) as i32;
+                let icon_y = y + (4.0 * scale) as i32;
                 if entry.is_dir {
-                    draw_folder_icon(canvas, icon_x, icon_y, colors);
+                    draw_folder_icon(canvas, icon_x, icon_y, colors, scale);
                 } else {
-                    draw_file_icon(canvas, icon_x, icon_y, &entry.name, colors);
+                    draw_file_icon(canvas, icon_x, icon_y, &entry.name, colors, scale);
                 }
 
                 // Name
                 let text_color = if is_selected { rgb(255, 255, 255) } else { colors.text };
                 let display_name = truncate_name(&entry.name, 35);
                 let name_canvas = font.render(&display_name).with_color(text_color).finish();
-                canvas.draw_canvas(&name_canvas, list_x + 32, y + 6);
+                canvas.draw_canvas(&name_canvas, list_x + (32.0 * scale) as i32, y + (6.0 * scale) as i32);
 
                 // Size (for files)
                 if !entry.is_dir {
                     let size_str = format_size(entry.size);
                     let size_color = if is_selected { rgb(220, 220, 220) } else { rgb(140, 140, 140) };
                     let size_canvas = font.render(&size_str).with_color(size_color).finish();
-                    canvas.draw_canvas(&size_canvas, list_x + NAME_COL_WIDTH as i32 + 8, y + 6);
+                    canvas.draw_canvas(&size_canvas, list_x + name_col_width as i32 + (8.0 * scale) as i32, y + (6.0 * scale) as i32);
                 }
 
                 // Date
                 let date_str = format_date(entry.modified);
                 let date_color = if is_selected { rgb(220, 220, 220) } else { rgb(140, 140, 140) };
                 let date_canvas = font.render(&date_str).with_color(date_color).finish();
-                canvas.draw_canvas(&date_canvas, list_x + NAME_COL_WIDTH as i32 + SIZE_COL_WIDTH as i32 + 16, y + 6);
+                canvas.draw_canvas(&date_canvas, list_x + name_col_width as i32 + size_col_width as i32 + (16.0 * scale) as i32, y + (6.0 * scale) as i32);
             }
 
             // Scrollbar
             if filtered_entries.len() > visible_items {
-                let scrollbar_x = main_x + main_w as i32 - 8;
+                let scrollbar_x = main_x + main_w as i32 - (8.0 * scale) as i32;
                 let scrollbar_h = list_h as f32;
-                let thumb_h = (visible_items as f32 / filtered_entries.len() as f32 * scrollbar_h).max(20.0);
+                let thumb_h = (visible_items as f32 / filtered_entries.len() as f32 * scrollbar_h).max(20.0 * scale);
                 let thumb_y = scroll_offset as f32 / filtered_entries.len() as f32 * scrollbar_h;
 
                 // Track
                 canvas.fill_rounded_rect(
                     scrollbar_x as f32, list_y as f32,
-                    6.0, scrollbar_h,
-                    3.0, darken(colors.input_bg, 0.05),
+                    6.0 * scale, scrollbar_h,
+                    3.0 * scale, darken(colors.input_bg, 0.05),
                 );
                 // Thumb
                 canvas.fill_rounded_rect(
                     scrollbar_x as f32, list_y as f32 + thumb_y,
-                    6.0, thumb_h,
-                    3.0, colors.input_border,
+                    6.0 * scale, thumb_h,
+                    3.0 * scale, colors.input_border,
                 );
             }
 
@@ -404,7 +422,7 @@ impl FileSelectBuilder {
             canvas.stroke_rounded_rect(
                 main_x as f32, main_y as f32,
                 main_w as f32, main_h as f32,
-                6.0, colors.input_border, 1.0,
+                6.0 * scale, colors.input_border, 1.0,
             );
 
             // Buttons
@@ -414,7 +432,7 @@ impl FileSelectBuilder {
             // Status bar
             let status = format!("{} items", filtered_entries.len());
             let status_canvas = font.render(&status).with_color(rgb(120, 120, 120)).finish();
-            canvas.draw_canvas(&status_canvas, main_x, button_y + 8);
+            canvas.draw_canvas(&status_canvas, main_x, button_y + (8.0 * scale) as i32);
         };
 
         // Initial draw
@@ -447,12 +465,12 @@ impl FileSelectBuilder {
                     hovered_entry = None;
 
                     // Check quick access hover
-                    if mouse_x >= sidebar_x && mouse_x < sidebar_x + SIDEBAR_WIDTH as i32
+                    if mouse_x >= sidebar_x && mouse_x < sidebar_x + sidebar_width as i32
                         && mouse_y >= sidebar_y
                     {
-                        let rel_y = mouse_y - sidebar_y - 8;
+                        let rel_y = mouse_y - sidebar_y - (8.0 * scale) as i32;
                         if rel_y >= 0 {
-                            let idx = (rel_y / 32) as usize;
+                            let idx = (rel_y as f32 / (32.0 * scale)) as usize;
                             if idx < quick_access.len() {
                                 hovered_quick_access = Some(idx);
                             }
@@ -464,7 +482,7 @@ impl FileSelectBuilder {
                         && mouse_y >= list_y && mouse_y < list_y + list_h as i32
                     {
                         let rel_y = (mouse_y - list_y) as usize;
-                        let idx = scroll_offset + rel_y / ITEM_HEIGHT as usize;
+                        let idx = scroll_offset + rel_y / item_height as usize;
                         if idx < filtered_entries.len() {
                             hovered_entry = Some(filtered_entries[idx]);
                         }
@@ -476,10 +494,11 @@ impl FileSelectBuilder {
                 }
                 WindowEvent::ButtonPress(MouseButton::Left) => {
                     // Toolbar buttons
-                    let nav_y = PADDING as i32 + 4;
-                    if mouse_y >= nav_y && mouse_y < nav_y + 28 {
+                    let nav_y = padding as i32 + (4.0 * scale) as i32;
+                    let btn_size = (28.0 * scale) as i32;
+                    if mouse_y >= nav_y && mouse_y < nav_y + btn_size {
                         // Back
-                        if mouse_x >= PADDING as i32 && mouse_x < (PADDING + 28) as i32 {
+                        if mouse_x >= padding as i32 && mouse_x < padding as i32 + btn_size {
                             if history_index > 0 {
                                 history_index -= 1;
                                 current_dir = history[history_index].clone();
@@ -491,7 +510,7 @@ impl FileSelectBuilder {
                             }
                         }
                         // Forward
-                        else if mouse_x >= (PADDING + 32) as i32 && mouse_x < (PADDING + 60) as i32 {
+                        else if mouse_x >= (padding as f32 + 32.0 * scale) as i32 && mouse_x < (padding as f32 + 60.0 * scale) as i32 {
                             if history_index + 1 < history.len() {
                                 history_index += 1;
                                 current_dir = history[history_index].clone();
@@ -503,7 +522,7 @@ impl FileSelectBuilder {
                             }
                         }
                         // Up
-                        else if mouse_x >= (PADDING + 68) as i32 && mouse_x < (PADDING + 96) as i32 {
+                        else if mouse_x >= (padding as f32 + 68.0 * scale) as i32 && mouse_x < (padding as f32 + 96.0 * scale) as i32 {
                             if let Some(parent) = current_dir.parent() {
                                 navigate_to(parent.to_path_buf(), &mut current_dir, &mut history, &mut history_index);
                                 load_directory(&current_dir, &mut all_entries, self.directory, show_hidden);
@@ -514,7 +533,7 @@ impl FileSelectBuilder {
                             }
                         }
                         // Home
-                        else if mouse_x >= (PADDING + 104) as i32 && mouse_x < (PADDING + 132) as i32 {
+                        else if mouse_x >= (padding as f32 + 104.0 * scale) as i32 && mouse_x < (padding as f32 + 132.0 * scale) as i32 {
                             if let Some(home) = dirs::home_dir() {
                                 navigate_to(home, &mut current_dir, &mut history, &mut history_index);
                                 load_directory(&current_dir, &mut all_entries, self.directory, show_hidden);
@@ -525,7 +544,7 @@ impl FileSelectBuilder {
                             }
                         }
                         // Hidden toggle
-                        else if mouse_x >= (PADDING + 150) as i32 && mouse_x < (PADDING + 178) as i32 {
+                        else if mouse_x >= (padding as f32 + 150.0 * scale) as i32 && mouse_x < (padding as f32 + 178.0 * scale) as i32 {
                             show_hidden = !show_hidden;
                             load_directory(&current_dir, &mut all_entries, self.directory, show_hidden);
                             update_filtered(&all_entries, &search_text, &mut filtered_entries);
@@ -570,7 +589,7 @@ impl FileSelectBuilder {
 
                     // Search input focus
                     let in_search = mouse_x >= search_x && mouse_x < search_x + search_width as i32
-                        && mouse_y >= search_y && mouse_y < search_y + 32;
+                        && mouse_y >= search_y && mouse_y < search_y + (32.0 * scale) as i32;
                     search_input.set_focus(in_search);
                 }
                 WindowEvent::Scroll(direction) => {
@@ -899,22 +918,24 @@ fn format_date(time: Option<SystemTime>) -> String {
     }
 }
 
-fn draw_nav_button(canvas: &mut Canvas, x: i32, y: i32, label: &str, enabled: bool, colors: &Colors, font: &Font) {
+fn draw_nav_button(canvas: &mut Canvas, x: i32, y: i32, label: &str, enabled: bool, colors: &Colors, font: &Font, scale: f32) {
     let bg = if enabled { colors.button } else { darken(colors.button, 0.1) };
-    canvas.fill_rounded_rect(x as f32, y as f32, 28.0, 28.0, 4.0, bg);
+    let size = 28.0 * scale;
+    canvas.fill_rounded_rect(x as f32, y as f32, size, size, 4.0 * scale, bg);
 
     let text_color = if enabled { colors.button_text } else { rgb(100, 100, 100) };
     let tc = font.render(label).with_color(text_color).finish();
-    canvas.draw_canvas(&tc, x + 10, y + 6);
+    canvas.draw_canvas(&tc, x + (10.0 * scale) as i32, y + (6.0 * scale) as i32);
 }
 
-fn draw_toggle(canvas: &mut Canvas, x: i32, y: i32, label: &str, active: bool, colors: &Colors, font: &Font) {
+fn draw_toggle(canvas: &mut Canvas, x: i32, y: i32, label: &str, active: bool, colors: &Colors, font: &Font, scale: f32) {
     let bg = if active { colors.input_border_focused } else { colors.button };
-    canvas.fill_rounded_rect(x as f32, y as f32, 28.0, 28.0, 4.0, bg);
+    let size = 28.0 * scale;
+    canvas.fill_rounded_rect(x as f32, y as f32, size, size, 4.0 * scale, bg);
 
     let text_color = if active { rgb(255, 255, 255) } else { colors.button_text };
     let tc = font.render(label).with_color(text_color).finish();
-    canvas.draw_canvas(&tc, x + 6, y + 6);
+    canvas.draw_canvas(&tc, x + (6.0 * scale) as i32, y + (6.0 * scale) as i32);
 }
 
 fn draw_breadcrumbs(canvas: &mut Canvas, x: i32, y: i32, _max_w: u32, path: &Path, colors: &Colors, font: &Font) {
@@ -947,17 +968,19 @@ fn draw_breadcrumbs(canvas: &mut Canvas, x: i32, y: i32, _max_w: u32, path: &Pat
     }
 }
 
-fn draw_folder_icon(canvas: &mut Canvas, x: i32, y: i32, colors: &Colors) {
+fn draw_folder_icon(canvas: &mut Canvas, x: i32, y: i32, colors: &Colors, scale: f32) {
     let folder_color = rgb(240, 180, 70); // Golden folder
+    let icon_size = (BASE_ICON_SIZE as f32 * scale) as f32;
     // Folder body
-    canvas.fill_rounded_rect(x as f32, (y + 4) as f32, ICON_SIZE as f32, 14.0, 2.0, folder_color);
+    canvas.fill_rounded_rect(x as f32, (y + (4.0 * scale) as i32) as f32, icon_size, 14.0 * scale, 2.0 * scale, folder_color);
     // Folder tab
-    canvas.fill_rounded_rect(x as f32, y as f32, 10.0, 6.0, 2.0, folder_color);
+    canvas.fill_rounded_rect(x as f32, y as f32, 10.0 * scale, 6.0 * scale, 2.0 * scale, folder_color);
     let _ = colors;
 }
 
-fn draw_file_icon(canvas: &mut Canvas, x: i32, y: i32, name: &str, colors: &Colors) {
+fn draw_file_icon(canvas: &mut Canvas, x: i32, y: i32, name: &str, colors: &Colors, scale: f32) {
     let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
+    let icon_size = (BASE_ICON_SIZE as f32 * scale) as f32;
 
     let icon_color = match ext.as_str() {
         "rs" => rgb(220, 120, 70),   // Rust orange
@@ -972,13 +995,13 @@ fn draw_file_icon(canvas: &mut Canvas, x: i32, y: i32, name: &str, colors: &Colo
     };
 
     // File body
-    canvas.fill_rounded_rect(x as f32, y as f32, 16.0, ICON_SIZE as f32, 2.0, icon_color);
+    canvas.fill_rounded_rect(x as f32, y as f32, 16.0 * scale, icon_size, 2.0 * scale, icon_color);
     // Folded corner
-    canvas.fill_rect((x + 10) as f32, y as f32, 6.0, 6.0, darken(icon_color, 0.2));
+    canvas.fill_rect((x + (10.0 * scale) as i32) as f32, y as f32, 6.0 * scale, 6.0 * scale, darken(icon_color, 0.2));
     let _ = colors;
 }
 
-fn draw_quick_access_icon(canvas: &mut Canvas, x: i32, y: i32, icon: QuickAccessIcon, colors: &Colors) {
+fn draw_quick_access_icon(canvas: &mut Canvas, x: i32, y: i32, icon: QuickAccessIcon, colors: &Colors, scale: f32) {
     let color = match icon {
         QuickAccessIcon::Home => rgb(100, 180, 100),
         QuickAccessIcon::Desktop => rgb(120, 120, 200),
@@ -989,6 +1012,6 @@ fn draw_quick_access_icon(canvas: &mut Canvas, x: i32, y: i32, icon: QuickAccess
         QuickAccessIcon::Videos => rgb(180, 100, 200),
     };
 
-    canvas.fill_rounded_rect(x as f32, y as f32, 16.0, 16.0, 3.0, color);
+    canvas.fill_rounded_rect(x as f32, y as f32, 16.0 * scale, 16.0 * scale, 3.0 * scale, color);
     let _ = colors;
 }

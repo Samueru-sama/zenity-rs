@@ -9,14 +9,14 @@ pub struct Font {
     font: PxScaleFont<ab_glyph::FontRef<'static>>,
 }
 
-const FONT_SIZE: f32 = 18.0;
+const BASE_FONT_SIZE: f32 = 18.0;
 
 impl Font {
-    /// Loads the font to use for dialog contents.
-    pub fn load() -> Self {
+    /// Loads the font with the given scale factor for crisp rendering.
+    pub fn load(scale: f32) -> Self {
         let inner = ab_glyph::FontRef::try_from_slice(FALLBACK_FONT).unwrap();
         Self {
-            font: inner.into_scaled(FONT_SIZE),
+            font: inner.into_scaled(BASE_FONT_SIZE * scale),
         }
     }
 
@@ -149,9 +149,9 @@ impl<'a> TextRenderer<'a> {
     fn layout(&self) -> Vec<OutlinedGlyph> {
         let mut glyphs: Vec<Glyph> = Vec::new();
 
-        let mut y = 0.0;
+        let mut y: f32 = 0.0;
         for line in self.text.lines() {
-            let mut x = 0.0;
+            let mut x: f32 = 0.0;
             let mut last_softbreak: Option<usize> = None;
             let mut last = None;
 
@@ -160,7 +160,8 @@ impl<'a> TextRenderer<'a> {
                 if let Some(last) = last {
                     x += self.font.font.kern(last, glyph.id);
                 }
-                glyph.position = point(x, y);
+                // Round positions to pixel boundaries for crisp text
+                glyph.position = point(x.round(), y.round());
                 last = Some(glyph.id);
 
                 x += self.font.font.h_advance(glyph.id);

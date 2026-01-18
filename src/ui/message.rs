@@ -9,11 +9,11 @@ use crate::ui::{ButtonPreset, Colors, DialogResult, Icon};
 use crate::ui::widgets::Widget;
 use crate::ui::widgets::button::Button;
 
-const ICON_SIZE: u32 = 48;
-const PADDING: u32 = 20;
-const BUTTON_SPACING: u32 = 10;
-const MIN_WIDTH: u32 = 300;
-const MAX_TEXT_WIDTH: f32 = 350.0;
+const BASE_ICON_SIZE: u32 = 48;
+const BASE_PADDING: u32 = 20;
+const BASE_BUTTON_SPACING: u32 = 10;
+const BASE_MIN_WIDTH: u32 = 300;
+const BASE_MAX_TEXT_WIDTH: f32 = 350.0;
 
 /// Message dialog builder.
 pub struct MessageBuilder {
@@ -70,52 +70,75 @@ impl MessageBuilder {
 
     pub fn show(self) -> Result<DialogResult, Error> {
         let colors = self.colors.unwrap_or_else(|| crate::ui::detect_theme());
-        let font = Font::load();
 
-        // Create buttons
+        // First pass: calculate LOGICAL dimensions using a temporary font at scale 1.0
+        let temp_font = Font::load(1.0);
         let labels = self.buttons.labels();
-        let mut buttons: Vec<Button> = labels.iter().map(|l| Button::new(l, &font)).collect();
 
-        // Calculate button row dimensions
-        let buttons_width: u32 = buttons.iter().map(|b| b.width()).sum::<u32>()
-            + (buttons.len().saturating_sub(1) as u32 * BUTTON_SPACING);
+        // Calculate logical button widths
+        let temp_buttons: Vec<Button> = labels.iter().map(|l| Button::new(l, &temp_font, 1.0)).collect();
+        let logical_buttons_width: u32 = temp_buttons.iter().map(|b| b.width()).sum::<u32>()
+            + (temp_buttons.len().saturating_sub(1) as u32 * BASE_BUTTON_SPACING);
 
-        // Render message text
-        let text_canvas = font
+        // Calculate logical text size
+        let temp_text = temp_font
             .render(&self.text)
-            .with_color(colors.text)
-            .with_max_width(MAX_TEXT_WIDTH)
+            .with_max_width(BASE_MAX_TEXT_WIDTH)
             .finish();
 
-        // Calculate content width
-        let icon_width = if self.icon.is_some() {
-            ICON_SIZE + PADDING
+        let logical_icon_width = if self.icon.is_some() {
+            BASE_ICON_SIZE + BASE_PADDING
         } else {
             0
         };
-        let content_width = icon_width + text_canvas.width();
+        let logical_content_width = logical_icon_width + temp_text.width();
+        let logical_inner_width = logical_content_width.max(logical_buttons_width);
+        let logical_width = (logical_inner_width + BASE_PADDING * 2).max(BASE_MIN_WIDTH) as u16;
+        let logical_text_height = temp_text.height().max(BASE_ICON_SIZE);
+        let logical_height = (BASE_PADDING * 3 + logical_text_height + 32) as u16;
 
-        // Calculate window dimensions
-        let inner_width = content_width.max(buttons_width);
-        let width = (inner_width + PADDING * 2).max(MIN_WIDTH) as u16;
-
-        let text_height = text_canvas.height().max(ICON_SIZE);
-        let height = (PADDING * 3 + text_height + 32) as u16; // 32 for button height
-
-        // Create window
-        let mut window = create_window(width, height)?;
+        // Create window with LOGICAL dimensions - window will handle physical scaling
+        let mut window = create_window(logical_width, logical_height)?;
         window.set_title(&self.title)?;
 
-        // Position buttons (right-aligned)
-        let mut button_x = width as i32 - PADDING as i32;
+        // Get the actual scale factor from the window (compositor scale)
+        let scale = window.scale_factor();
+
+        // Now create everything at PHYSICAL scale
+        let font = Font::load(scale);
+
+        // Scale dimensions for physical rendering
+        let icon_size = (BASE_ICON_SIZE as f32 * scale) as u32;
+        let padding = (BASE_PADDING as f32 * scale) as u32;
+        let button_spacing = (BASE_BUTTON_SPACING as f32 * scale) as u32;
+        let max_text_width = BASE_MAX_TEXT_WIDTH * scale;
+        let button_height = (32.0 * scale) as u32;
+
+        // Create buttons at physical scale
+        let mut buttons: Vec<Button> = labels.iter().map(|l| Button::new(l, &font, scale)).collect();
+
+        // Calculate physical dimensions
+        let physical_width = (logical_width as f32 * scale) as u32;
+        let physical_height = (logical_height as f32 * scale) as u32;
+
+        // Pre-render text to get actual height
+        let text_canvas = font
+            .render(&self.text)
+            .with_color(colors.text)
+            .with_max_width(max_text_width)
+            .finish();
+        let text_height = text_canvas.height().max(icon_size);
+
+        // Position buttons (right-aligned) in physical coordinates
+        let mut button_x = physical_width as i32 - padding as i32;
         for button in buttons.iter_mut().rev() {
             button_x -= button.width() as i32;
-            button.set_position(button_x, height as i32 - PADDING as i32 - 32);
-            button_x -= BUTTON_SPACING as i32;
+            button.set_position(button_x, physical_height as i32 - padding as i32 - button_height as i32);
+            button_x -= button_spacing as i32;
         }
 
-        // Create canvas
-        let mut canvas = Canvas::new(width as u32, height as u32);
+        // Create canvas at PHYSICAL dimensions
+        let mut canvas = Canvas::new(physical_width, physical_height);
 
         // Initial draw
         draw_dialog(
@@ -126,6 +149,7 @@ impl MessageBuilder {
             self.icon,
             &buttons,
             text_canvas.height(),
+            scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -168,6 +192,7 @@ impl MessageBuilder {
                         self.icon,
                         &buttons,
                         text_canvas.height(),
+                        scale,
                     );
                     window.set_contents(&canvas)?;
                 }
@@ -229,6 +254,7 @@ impl MessageBuilder {
                     self.icon,
                     &buttons,
                     text_canvas.height(),
+                    scale,
                 );
                 window.set_contents(&canvas)?;
             }
@@ -244,28 +270,34 @@ fn draw_dialog(
     icon: Option<Icon>,
     buttons: &[Button],
     text_height: u32,
+    scale: f32,
 ) {
+    // Scale dimensions
+    let icon_size = (BASE_ICON_SIZE as f32 * scale) as u32;
+    let padding = (BASE_PADDING as f32 * scale) as u32;
+    let max_text_width = BASE_MAX_TEXT_WIDTH * scale;
+
     // Clear background
     canvas.fill(colors.window_bg);
 
-    let mut x = PADDING as i32;
-    let y = PADDING as i32;
+    let mut x = padding as i32;
+    let y = padding as i32;
 
     // Draw icon
     if let Some(icon) = icon {
-        draw_icon(canvas, x, y, icon);
-        x += (ICON_SIZE + PADDING) as i32;
+        draw_icon(canvas, x, y, icon, scale);
+        x += (icon_size + padding) as i32;
     }
 
     // Draw text
     let text_canvas = font
         .render(text)
         .with_color(colors.text)
-        .with_max_width(MAX_TEXT_WIDTH)
+        .with_max_width(max_text_width)
         .finish();
 
     // Center text vertically with icon
-    let text_y = y + (ICON_SIZE as i32 - text_height as i32) / 2;
+    let text_y = y + (icon_size as i32 - text_height as i32) / 2;
     canvas.draw_canvas(&text_canvas, x, text_y.max(y));
 
     // Draw buttons
@@ -274,7 +306,10 @@ fn draw_dialog(
     }
 }
 
-fn draw_icon(canvas: &mut Canvas, x: i32, y: i32, icon: Icon) {
+fn draw_icon(canvas: &mut Canvas, x: i32, y: i32, icon: Icon, scale: f32) {
+    let icon_size = (BASE_ICON_SIZE as f32 * scale) as u32;
+    let inset = (4.0 * scale) as f32;
+
     let (color, shape) = match icon {
         Icon::Info => (rgb(66, 133, 244), IconShape::Circle),    // Blue
         Icon::Warning => (rgb(251, 188, 4), IconShape::Triangle), // Yellow
@@ -282,15 +317,15 @@ fn draw_icon(canvas: &mut Canvas, x: i32, y: i32, icon: Icon) {
         Icon::Question => (rgb(52, 168, 83), IconShape::Circle),  // Green
     };
 
-    let cx = x as f32 + ICON_SIZE as f32 / 2.0;
-    let cy = y as f32 + ICON_SIZE as f32 / 2.0;
-    let r = ICON_SIZE as f32 / 2.0 - 2.0;
+    let cx = x as f32 + icon_size as f32 / 2.0;
+    let cy = y as f32 + icon_size as f32 / 2.0;
+    let r = icon_size as f32 / 2.0 - (2.0 * scale);
 
     match shape {
         IconShape::Circle => {
             // Draw filled circle
-            for dy in 0..ICON_SIZE {
-                for dx in 0..ICON_SIZE {
+            for dy in 0..icon_size {
+                for dx in 0..icon_size {
                     let px = x as f32 + dx as f32 + 0.5;
                     let py = y as f32 + dy as f32 + 0.5;
                     let dist = ((px - cx).powi(2) + (py - cy).powi(2)).sqrt();
@@ -308,12 +343,12 @@ fn draw_icon(canvas: &mut Canvas, x: i32, y: i32, icon: Icon) {
         }
         IconShape::Triangle => {
             // Draw triangle (warning sign)
-            let top = (cx, y as f32 + 4.0);
-            let left = (x as f32 + 4.0, y as f32 + ICON_SIZE as f32 - 4.0);
-            let right = (x as f32 + ICON_SIZE as f32 - 4.0, y as f32 + ICON_SIZE as f32 - 4.0);
+            let top = (cx, y as f32 + inset);
+            let left = (x as f32 + inset, y as f32 + icon_size as f32 - inset);
+            let right = (x as f32 + icon_size as f32 - inset, y as f32 + icon_size as f32 - inset);
 
-            for dy in 0..ICON_SIZE {
-                for dx in 0..ICON_SIZE {
+            for dy in 0..icon_size {
+                for dx in 0..icon_size {
                     let px = x as f32 + dx as f32 + 0.5;
                     let py = y as f32 + dy as f32 + 0.5;
                     if point_in_triangle(px, py, top, left, right) {
@@ -338,10 +373,10 @@ fn draw_icon(canvas: &mut Canvas, x: i32, y: i32, icon: Icon) {
         Icon::Question => "?",
     };
 
-    let font = Font::load();
+    let font = Font::load(scale);
     let symbol_canvas = font.render(symbol).with_color(rgb(255, 255, 255)).finish();
-    let sx = x + (ICON_SIZE as i32 - symbol_canvas.width() as i32) / 2;
-    let sy = y + (ICON_SIZE as i32 - symbol_canvas.height() as i32) / 2;
+    let sx = x + (icon_size as i32 - symbol_canvas.width() as i32) / 2;
+    let sy = y + (icon_size as i32 - symbol_canvas.height() as i32) / 2;
     canvas.draw_canvas(&symbol_canvas, sx, sy);
 }
 

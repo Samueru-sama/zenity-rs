@@ -7,11 +7,11 @@ use crate::ui::Colors;
 use crate::ui::widgets::Widget;
 use crate::ui::widgets::button::Button;
 
-const PADDING: u32 = 16;
-const CELL_SIZE: u32 = 36;
-const HEADER_HEIGHT: u32 = 40;
-const DAY_HEADER_HEIGHT: u32 = 28;
-const DROPDOWN_ITEM_HEIGHT: u32 = 24;
+const BASE_PADDING: u32 = 16;
+const BASE_CELL_SIZE: u32 = 36;
+const BASE_HEADER_HEIGHT: u32 = 40;
+const BASE_DAY_HEADER_HEIGHT: u32 = 28;
+const BASE_DROPDOWN_ITEM_HEIGHT: u32 = 24;
 
 /// Calendar dialog result.
 #[derive(Debug, Clone)]
@@ -108,7 +108,35 @@ impl CalendarBuilder {
 
     pub fn show(self) -> Result<CalendarResult, Error> {
         let colors = self.colors.unwrap_or_else(|| crate::ui::detect_theme());
-        let font = Font::load();
+
+        // Calculate logical dimensions at scale 1.0
+        let logical_grid_width = BASE_CELL_SIZE * 7;
+        let logical_text_height = if self.text.is_empty() { 0 } else { 24 };
+        let logical_width = logical_grid_width + BASE_PADDING * 2;
+        let logical_height = BASE_PADDING * 2 + logical_text_height + BASE_HEADER_HEIGHT + BASE_DAY_HEADER_HEIGHT + BASE_CELL_SIZE * 6 + 50;
+
+        // Create window with LOGICAL dimensions
+        let mut window = create_window(logical_width as u16, logical_height as u16)?;
+        window.set_title(if self.title.is_empty() { "Select Date" } else { &self.title })?;
+
+        // Get the actual scale factor from the window (compositor scale)
+        let scale = window.scale_factor();
+
+        // Now create everything at PHYSICAL scale
+        let font = Font::load(scale);
+
+        // Scale dimensions for physical rendering
+        let padding = (BASE_PADDING as f32 * scale) as u32;
+        let cell_size = (BASE_CELL_SIZE as f32 * scale) as u32;
+        let header_height = (BASE_HEADER_HEIGHT as f32 * scale) as u32;
+        let day_header_height = (BASE_DAY_HEADER_HEIGHT as f32 * scale) as u32;
+        let dropdown_item_height = (BASE_DROPDOWN_ITEM_HEIGHT as f32 * scale) as u32;
+
+        // Calculate physical dimensions
+        let grid_width = cell_size * 7;
+        let text_height = if self.text.is_empty() { 0 } else { (24.0 * scale) as u32 };
+        let width = grid_width + padding * 2;
+        let height = padding * 2 + text_height + header_height + day_header_height + cell_size * 6 + (50.0 * scale) as u32;
 
         // Get current date as default
         let now = current_date();
@@ -116,37 +144,28 @@ impl CalendarBuilder {
         let mut month = self.month.unwrap_or(now.1);
         let mut selected_day = self.day.unwrap_or(now.2);
 
-        // Create buttons
-        let mut ok_button = Button::new("OK", &font);
-        let mut cancel_button = Button::new("Cancel", &font);
+        // Create buttons at physical scale
+        let mut ok_button = Button::new("OK", &font, scale);
+        let mut cancel_button = Button::new("Cancel", &font, scale);
 
-        // Calculate dimensions
-        let grid_width = CELL_SIZE * 7;
-        let text_height = if self.text.is_empty() { 0 } else { 24 };
-        let width = grid_width + PADDING * 2;
-        let height = PADDING * 2 + text_height + HEADER_HEIGHT + DAY_HEADER_HEIGHT + CELL_SIZE * 6 + 50;
-
-        // Create window
-        let mut window = create_window(width as u16, height as u16)?;
-        window.set_title(if self.title.is_empty() { "Select Date" } else { &self.title })?;
-
-        // Layout
-        let mut y = PADDING as i32;
+        // Layout in physical coordinates
+        let mut y = padding as i32;
         let text_y = y;
         if !self.text.is_empty() {
-            y += text_height as i32 + 8;
+            y += text_height as i32 + (8.0 * scale) as i32;
         }
 
-        let calendar_x = PADDING as i32;
+        let calendar_x = padding as i32;
         let calendar_y = y;
 
-        let button_y = (height - PADDING - 32) as i32;
-        let mut bx = width as i32 - PADDING as i32;
+        let button_y = (height - padding - (32.0 * scale) as u32) as i32;
+        let mut bx = width as i32 - padding as i32;
         bx -= cancel_button.width() as i32;
         cancel_button.set_position(bx, button_y);
-        bx -= 10 + ok_button.width() as i32;
+        bx -= (10.0 * scale) as i32 + ok_button.width() as i32;
         ok_button.set_position(bx, button_y);
 
+        // Create canvas at PHYSICAL dimensions
         let mut canvas = Canvas::new(width, height);
         let mut mouse_x = 0i32;
         let mut mouse_y = 0i32;
@@ -161,12 +180,12 @@ impl CalendarBuilder {
             calendar_x, calendar_y, grid_width,
             year, month, selected_day, hovered_day,
             dropdown, dropdown_hover, year_scroll_offset,
-            &ok_button, &cancel_button,
+            &ok_button, &cancel_button, scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
 
-        let grid_y = calendar_y + HEADER_HEIGHT as i32 + DAY_HEADER_HEIGHT as i32;
+        let grid_y = calendar_y + header_height as i32 + day_header_height as i32;
 
         loop {
             let event = window.wait_for_event()?;
@@ -184,7 +203,7 @@ impl CalendarBuilder {
                         let old_hover = dropdown_hover;
                         dropdown_hover = get_dropdown_hover(
                             dropdown, mouse_x, mouse_y,
-                            calendar_x, calendar_y,
+                            calendar_x, calendar_y, scale,
                         );
                         if old_hover != dropdown_hover {
                             needs_redraw = true;
@@ -195,10 +214,10 @@ impl CalendarBuilder {
                         hovered_day = None;
 
                         if mouse_x >= calendar_x && mouse_x < calendar_x + grid_width as i32
-                            && mouse_y >= grid_y && mouse_y < grid_y + (CELL_SIZE * 6) as i32
+                            && mouse_y >= grid_y && mouse_y < grid_y + (cell_size * 6) as i32
                         {
-                            let col = (mouse_x - calendar_x) / CELL_SIZE as i32;
-                            let row = (mouse_y - grid_y) / CELL_SIZE as i32;
+                            let col = (mouse_x - calendar_x) / cell_size as i32;
+                            let row = (mouse_y - grid_y) / cell_size as i32;
                             let cell_idx = row * 7 + col;
 
                             let first_day = first_day_of_month(year, month);
@@ -239,7 +258,7 @@ impl CalendarBuilder {
                         needs_redraw = true;
                     }
                     // Check header clicks
-                    else if mouse_y >= header_y && mouse_y < header_y + HEADER_HEIGHT as i32 {
+                    else if mouse_y >= header_y && mouse_y < header_y + header_height as i32 {
                         // Calculate actual positions based on text widths
                         let month_name = month_name(month);
                         let month_text_width = font.render(month_name).finish().width() as i32;
@@ -481,7 +500,7 @@ impl CalendarBuilder {
                     calendar_x, calendar_y, grid_width,
                     year, month, selected_day, hovered_day,
                     dropdown, dropdown_hover, year_scroll_offset,
-                    &ok_button, &cancel_button,
+                    &ok_button, &cancel_button, scale,
                 );
                 window.set_contents(&canvas)?;
             }
@@ -507,21 +526,28 @@ fn draw_calendar(
     year_scroll_offset: i32,
     ok_button: &Button,
     cancel_button: &Button,
+    scale: f32,
 ) {
+    // Scale dimensions
+    let padding = (BASE_PADDING as f32 * scale) as u32;
+    let cell_size = (BASE_CELL_SIZE as f32 * scale) as u32;
+    let header_height = (BASE_HEADER_HEIGHT as f32 * scale) as u32;
+    let day_header_height = (BASE_DAY_HEADER_HEIGHT as f32 * scale) as u32;
+
     canvas.fill(colors.window_bg);
 
     // Draw text prompt
     if !text.is_empty() {
         let tc = font.render(text).with_color(colors.text).finish();
-        canvas.draw_canvas(&tc, PADDING as i32, text_y);
+        canvas.draw_canvas(&tc, padding as i32, text_y);
     }
 
     // Calendar background
-    let cal_h = HEADER_HEIGHT + DAY_HEADER_HEIGHT + CELL_SIZE * 6;
+    let cal_h = header_height + day_header_height + cell_size * 6;
     canvas.fill_rounded_rect(
         calendar_x as f32, calendar_y as f32,
         grid_width as f32, cal_h as f32,
-        8.0, colors.input_bg,
+        8.0 * scale, colors.input_bg,
     );
 
     // Header with month/year and navigation
@@ -529,13 +555,13 @@ fn draw_calendar(
     let header_bg = darken(colors.input_bg, 0.03);
     canvas.fill_rounded_rect(
         calendar_x as f32, header_y as f32,
-        grid_width as f32, HEADER_HEIGHT as f32,
-        8.0, header_bg,
+        grid_width as f32, header_height as f32,
+        8.0 * scale, header_bg,
     );
     // Cover bottom corners
     canvas.fill_rect(
-        calendar_x as f32, (header_y + HEADER_HEIGHT as i32 - 8) as f32,
-        grid_width as f32, 8.0,
+        calendar_x as f32, (header_y + header_height as i32 - (8.0 * scale) as i32) as f32,
+        grid_width as f32, 8.0 * scale,
         header_bg,
     );
 
@@ -544,42 +570,42 @@ fn draw_calendar(
 
     // Previous arrow
     let prev_arrow = font.render("<").with_color(nav_color).finish();
-    canvas.draw_canvas(&prev_arrow, calendar_x + 10, header_y + 12);
+    canvas.draw_canvas(&prev_arrow, calendar_x + (10.0 * scale) as i32, header_y + (12.0 * scale) as i32);
 
     // Next arrow
     let next_arrow = font.render(">").with_color(nav_color).finish();
-    canvas.draw_canvas(&next_arrow, calendar_x + grid_width as i32 - 18, header_y + 12);
+    canvas.draw_canvas(&next_arrow, calendar_x + grid_width as i32 - (18.0 * scale) as i32, header_y + (12.0 * scale) as i32);
 
     // Month name (clickable)
     let month_name_str = month_name(month);
     let month_text = font.render(month_name_str).with_color(colors.text).finish();
-    let month_x = calendar_x + 35;
-    canvas.draw_canvas(&month_text, month_x, header_y + 12);
+    let month_x = calendar_x + (35.0 * scale) as i32;
+    canvas.draw_canvas(&month_text, month_x, header_y + (12.0 * scale) as i32);
 
     // Year (clickable)
     let year_str = year.to_string();
     let year_text = font.render(&year_str).with_color(colors.text).finish();
-    let year_x = month_x + month_text.width() as i32 + 8;
-    canvas.draw_canvas(&year_text, year_x, header_y + 12);
+    let year_x = month_x + month_text.width() as i32 + (8.0 * scale) as i32;
+    canvas.draw_canvas(&year_text, year_x, header_y + (12.0 * scale) as i32);
 
     // "Today" link (right side) - green color for action
     let today_color = rgb(80, 160, 100);
     let today_text = font.render("Today").with_color(today_color).finish();
-    let today_x = calendar_x + grid_width as i32 - 24 - today_text.width() as i32 - 8;
-    canvas.draw_canvas(&today_text, today_x, header_y + 12);
+    let today_x = calendar_x + grid_width as i32 - (24.0 * scale) as i32 - today_text.width() as i32 - (8.0 * scale) as i32;
+    canvas.draw_canvas(&today_text, today_x, header_y + (12.0 * scale) as i32);
 
     // Day headers
-    let day_header_y = header_y + HEADER_HEIGHT as i32;
+    let day_header_y = header_y + header_height as i32;
     let days = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
     for (i, day) in days.iter().enumerate() {
-        let dx = calendar_x + (i as u32 * CELL_SIZE) as i32;
+        let dx = calendar_x + (i as u32 * cell_size) as i32;
         let dt = font.render(day).with_color(rgb(140, 140, 140)).finish();
-        let dtx = dx + (CELL_SIZE as i32 - dt.width() as i32) / 2;
-        canvas.draw_canvas(&dt, dtx, day_header_y + 6);
+        let dtx = dx + (cell_size as i32 - dt.width() as i32) / 2;
+        canvas.draw_canvas(&dt, dtx, day_header_y + (6.0 * scale) as i32);
     }
 
     // Calendar grid
-    let grid_y = day_header_y + DAY_HEADER_HEIGHT as i32;
+    let grid_y = day_header_y + day_header_height as i32;
     let first_day = first_day_of_month(year, month);
     let days_in_month = days_in_month(year, month);
     let today = current_date();
@@ -589,8 +615,8 @@ fn draw_calendar(
         let row = cell_idx / 7;
         let col = cell_idx % 7;
 
-        let cx = calendar_x + col * CELL_SIZE as i32;
-        let cy = grid_y + row * CELL_SIZE as i32;
+        let cx = calendar_x + col * cell_size as i32;
+        let cy = grid_y + row * cell_size as i32;
 
         let is_selected = day == selected_day;
         let is_hovered = hovered_day == Some(day);
@@ -599,24 +625,24 @@ fn draw_calendar(
         // Cell background
         if is_selected {
             canvas.fill_rounded_rect(
-                (cx + 2) as f32, (cy + 2) as f32,
-                (CELL_SIZE - 4) as f32, (CELL_SIZE - 4) as f32,
-                4.0, colors.input_border_focused,
+                (cx + (2.0 * scale) as i32) as f32, (cy + (2.0 * scale) as i32) as f32,
+                (cell_size - (4.0 * scale) as u32) as f32, (cell_size - (4.0 * scale) as u32) as f32,
+                4.0 * scale, colors.input_border_focused,
             );
         } else if is_hovered {
             canvas.fill_rounded_rect(
-                (cx + 2) as f32, (cy + 2) as f32,
-                (CELL_SIZE - 4) as f32, (CELL_SIZE - 4) as f32,
-                4.0, darken(colors.input_bg, 0.08),
+                (cx + (2.0 * scale) as i32) as f32, (cy + (2.0 * scale) as i32) as f32,
+                (cell_size - (4.0 * scale) as u32) as f32, (cell_size - (4.0 * scale) as u32) as f32,
+                4.0 * scale, darken(colors.input_bg, 0.08),
             );
         }
 
         // Today indicator (ring)
         if is_today && !is_selected {
             canvas.stroke_rounded_rect(
-                (cx + 4) as f32, (cy + 4) as f32,
-                (CELL_SIZE - 8) as f32, (CELL_SIZE - 8) as f32,
-                4.0, colors.input_border_focused, 2.0,
+                (cx + (4.0 * scale) as i32) as f32, (cy + (4.0 * scale) as i32) as f32,
+                (cell_size - (8.0 * scale) as u32) as f32, (cell_size - (8.0 * scale) as u32) as f32,
+                4.0 * scale, colors.input_border_focused, 2.0 * scale,
             );
         }
 
@@ -630,8 +656,8 @@ fn draw_calendar(
             colors.text
         };
         let dt = font.render(&day_str).with_color(text_color).finish();
-        let dtx = cx + (CELL_SIZE as i32 - dt.width() as i32) / 2;
-        let dty = cy + (CELL_SIZE as i32 - dt.height() as i32) / 2;
+        let dtx = cx + (cell_size as i32 - dt.width() as i32) / 2;
+        let dty = cy + (cell_size as i32 - dt.height() as i32) / 2;
         canvas.draw_canvas(&dt, dtx, dty);
     }
 
@@ -639,7 +665,7 @@ fn draw_calendar(
     canvas.stroke_rounded_rect(
         calendar_x as f32, calendar_y as f32,
         grid_width as f32, cal_h as f32,
-        8.0, colors.input_border, 1.0,
+        8.0 * scale, colors.input_border, 1.0,
     );
 
     // Buttons (draw before dropdowns so dropdowns appear on top)
@@ -648,9 +674,9 @@ fn draw_calendar(
 
     // Draw dropdowns on top of everything
     if dropdown == DropdownState::Month {
-        draw_month_dropdown(canvas, colors, font, calendar_x, calendar_y, month, dropdown_hover);
+        draw_month_dropdown(canvas, colors, font, calendar_x, calendar_y, month, dropdown_hover, scale);
     } else if dropdown == DropdownState::Year {
-        draw_year_dropdown(canvas, colors, font, calendar_x, calendar_y, year, year_scroll_offset, dropdown_hover);
+        draw_year_dropdown(canvas, colors, font, calendar_x, calendar_y, year, year_scroll_offset, dropdown_hover, scale);
     }
 }
 
@@ -662,36 +688,40 @@ fn draw_month_dropdown(
     calendar_y: i32,
     current_month: u32,
     hover: Option<usize>,
+    scale: f32,
 ) {
-    let dropdown_x = calendar_x + 30;
-    let dropdown_y = calendar_y + HEADER_HEIGHT as i32;
-    let dropdown_w = 100;
-    let dropdown_h = 6 * DROPDOWN_ITEM_HEIGHT; // Show 6 items at a time
+    let header_height = (BASE_HEADER_HEIGHT as f32 * scale) as u32;
+    let dropdown_item_height = (BASE_DROPDOWN_ITEM_HEIGHT as f32 * scale) as u32;
+
+    let dropdown_x = calendar_x + (30.0 * scale) as i32;
+    let dropdown_y = calendar_y + header_height as i32;
+    let dropdown_w = (100.0 * scale) as u32;
+    let dropdown_h = 6 * dropdown_item_height; // Show 6 items at a time
 
     // Background with shadow effect
     canvas.fill_rounded_rect(
-        (dropdown_x + 3) as f32, (dropdown_y + 3) as f32,
+        (dropdown_x + (3.0 * scale) as i32) as f32, (dropdown_y + (3.0 * scale) as i32) as f32,
         dropdown_w as f32, (dropdown_h * 2) as f32,
-        6.0, rgb(0, 0, 0),
+        6.0 * scale, rgb(0, 0, 0),
     );
     canvas.fill_rounded_rect(
         dropdown_x as f32, dropdown_y as f32,
         dropdown_w as f32, (dropdown_h * 2) as f32,
-        6.0, colors.window_bg,
+        6.0 * scale, colors.window_bg,
     );
 
     // Items
-    for i in 0..12 {
-        let item_y = dropdown_y + (i as u32 * DROPDOWN_ITEM_HEIGHT) as i32;
+    for i in 0..12usize {
+        let item_y = dropdown_y + (i as u32 * dropdown_item_height) as i32;
         let is_current = i + 1 == current_month as usize;
         let is_hovered = hover == Some(i);
 
         // Hover background - subtle gray
         if is_hovered {
             canvas.fill_rounded_rect(
-                (dropdown_x + 4) as f32, (item_y + 2) as f32,
-                (dropdown_w - 8) as f32, (DROPDOWN_ITEM_HEIGHT - 4) as f32,
-                4.0, rgb(70, 130, 180), // Steel blue for hover
+                (dropdown_x + (4.0 * scale) as i32) as f32, (item_y + (2.0 * scale) as i32) as f32,
+                (dropdown_w - (8.0 * scale) as u32) as f32, (dropdown_item_height - (4.0 * scale) as u32) as f32,
+                4.0 * scale, rgb(70, 130, 180), // Steel blue for hover
             );
         }
 
@@ -711,14 +741,14 @@ fn draw_month_dropdown(
             colors.text
         };
         let tc = font.render(&display_name).with_color(text_color).finish();
-        canvas.draw_canvas(&tc, dropdown_x + 10, item_y + 4);
+        canvas.draw_canvas(&tc, dropdown_x + (10.0 * scale) as i32, item_y + (4.0 * scale) as i32);
     }
 
     // Border
     canvas.stroke_rounded_rect(
         dropdown_x as f32, dropdown_y as f32,
         dropdown_w as f32, (dropdown_h * 2) as f32,
-        6.0, colors.input_border, 1.0,
+        6.0 * scale, colors.input_border, 1.0,
     );
 }
 
@@ -731,23 +761,27 @@ fn draw_year_dropdown(
     current_year: u32,
     scroll_offset: i32,
     hover: Option<usize>,
+    scale: f32,
 ) {
-    let dropdown_x = calendar_x + 100;
-    let dropdown_y = calendar_y + HEADER_HEIGHT as i32;
-    let dropdown_w = 70;
+    let header_height = (BASE_HEADER_HEIGHT as f32 * scale) as u32;
+    let dropdown_item_height = (BASE_DROPDOWN_ITEM_HEIGHT as f32 * scale) as u32;
+
+    let dropdown_x = calendar_x + (100.0 * scale) as i32;
+    let dropdown_y = calendar_y + header_height as i32;
+    let dropdown_w = (70.0 * scale) as u32;
     let visible_years = 11usize;
-    let dropdown_h = visible_years as u32 * DROPDOWN_ITEM_HEIGHT;
+    let dropdown_h = visible_years as u32 * dropdown_item_height;
 
     // Background with shadow
     canvas.fill_rounded_rect(
-        (dropdown_x + 3) as f32, (dropdown_y + 3) as f32,
+        (dropdown_x + (3.0 * scale) as i32) as f32, (dropdown_y + (3.0 * scale) as i32) as f32,
         dropdown_w as f32, dropdown_h as f32,
-        6.0, rgb(0, 0, 0),
+        6.0 * scale, rgb(0, 0, 0),
     );
     canvas.fill_rounded_rect(
         dropdown_x as f32, dropdown_y as f32,
         dropdown_w as f32, dropdown_h as f32,
-        6.0, colors.window_bg,
+        6.0 * scale, colors.window_bg,
     );
 
     // Years centered around current year
@@ -757,16 +791,16 @@ fn draw_year_dropdown(
         let yr = base_year + i as i32;
         if yr < 1 { continue; }
 
-        let item_y = dropdown_y + (i as u32 * DROPDOWN_ITEM_HEIGHT) as i32;
+        let item_y = dropdown_y + (i as u32 * dropdown_item_height) as i32;
         let is_current = yr == current_year as i32;
         let is_hovered = hover == Some(i);
 
         // Hover background
         if is_hovered {
             canvas.fill_rounded_rect(
-                (dropdown_x + 4) as f32, (item_y + 2) as f32,
-                (dropdown_w - 8) as f32, (DROPDOWN_ITEM_HEIGHT - 4) as f32,
-                4.0, rgb(70, 130, 180), // Steel blue for hover
+                (dropdown_x + (4.0 * scale) as i32) as f32, (item_y + (2.0 * scale) as i32) as f32,
+                (dropdown_w - (8.0 * scale) as u32) as f32, (dropdown_item_height - (4.0 * scale) as u32) as f32,
+                4.0 * scale, rgb(70, 130, 180), // Steel blue for hover
             );
         }
 
@@ -785,14 +819,14 @@ fn draw_year_dropdown(
         };
         let tc = font.render(&yr_str).with_color(text_color).finish();
         let tx = dropdown_x + (dropdown_w as i32 - tc.width() as i32) / 2;
-        canvas.draw_canvas(&tc, tx, item_y + 4);
+        canvas.draw_canvas(&tc, tx, item_y + (4.0 * scale) as i32);
     }
 
     // Border
     canvas.stroke_rounded_rect(
         dropdown_x as f32, dropdown_y as f32,
         dropdown_w as f32, dropdown_h as f32,
-        6.0, colors.input_border, 1.0,
+        6.0 * scale, colors.input_border, 1.0,
     );
 }
 
@@ -802,32 +836,36 @@ fn get_dropdown_hover(
     mouse_y: i32,
     calendar_x: i32,
     calendar_y: i32,
+    scale: f32,
 ) -> Option<usize> {
-    let dropdown_y = calendar_y + HEADER_HEIGHT as i32;
+    let header_height = (BASE_HEADER_HEIGHT as f32 * scale) as u32;
+    let dropdown_item_height = (BASE_DROPDOWN_ITEM_HEIGHT as f32 * scale) as u32;
+
+    let dropdown_y = calendar_y + header_height as i32;
 
     match dropdown {
         DropdownState::Month => {
-            let dropdown_x = calendar_x + 30;
-            let dropdown_w = 100;
-            let dropdown_h = (12 * DROPDOWN_ITEM_HEIGHT) as i32;
+            let dropdown_x = calendar_x + (30.0 * scale) as i32;
+            let dropdown_w = (100.0 * scale) as i32;
+            let dropdown_h = (12 * dropdown_item_height) as i32;
 
-            if mouse_x >= dropdown_x && mouse_x < dropdown_x + dropdown_w as i32
+            if mouse_x >= dropdown_x && mouse_x < dropdown_x + dropdown_w
                 && mouse_y >= dropdown_y && mouse_y < dropdown_y + dropdown_h
             {
-                let idx = (mouse_y - dropdown_y) / DROPDOWN_ITEM_HEIGHT as i32;
+                let idx = (mouse_y - dropdown_y) / dropdown_item_height as i32;
                 return Some(idx as usize);
             }
         }
         DropdownState::Year => {
-            let dropdown_x = calendar_x + 100;
-            let dropdown_w = 70;
-            let visible_years = 11;
-            let dropdown_h = (visible_years * DROPDOWN_ITEM_HEIGHT) as i32;
+            let dropdown_x = calendar_x + (100.0 * scale) as i32;
+            let dropdown_w = (70.0 * scale) as i32;
+            let visible_years = 11u32;
+            let dropdown_h = (visible_years * dropdown_item_height) as i32;
 
-            if mouse_x >= dropdown_x && mouse_x < dropdown_x + dropdown_w as i32
+            if mouse_x >= dropdown_x && mouse_x < dropdown_x + dropdown_w
                 && mouse_y >= dropdown_y && mouse_y < dropdown_y + dropdown_h
             {
-                let idx = (mouse_y - dropdown_y) / DROPDOWN_ITEM_HEIGHT as i32;
+                let idx = (mouse_y - dropdown_y) / dropdown_item_height as i32;
                 return Some(idx as usize);
             }
         }

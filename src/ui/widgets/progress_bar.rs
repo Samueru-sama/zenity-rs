@@ -3,8 +3,8 @@
 use crate::render::Canvas;
 use crate::ui::Colors;
 
-const BAR_HEIGHT: u32 = 20;
-const BAR_RADIUS: f32 = 4.0;
+const BASE_BAR_HEIGHT: u32 = 20;
+const BASE_BAR_RADIUS: f32 = 4.0;
 
 /// A progress bar widget.
 pub struct ProgressBar {
@@ -12,18 +12,20 @@ pub struct ProgressBar {
     y: i32,
     width: u32,
     height: u32,
+    radius: f32,
     progress: f32, // 0.0 to 1.0
     pulsating: bool,
     pulse_position: f32, // For pulsating animation
 }
 
 impl ProgressBar {
-    pub fn new(width: u32) -> Self {
+    pub fn new(width: u32, scale: f32) -> Self {
         Self {
             x: 0,
             y: 0,
             width,
-            height: BAR_HEIGHT,
+            height: (BASE_BAR_HEIGHT as f32 * scale) as u32,
+            radius: BASE_BAR_RADIUS * scale,
             progress: 0.0,
             pulsating: false,
             pulse_position: 0.0,
@@ -92,7 +94,7 @@ impl ProgressBar {
             self.y as f32,
             self.width as f32,
             self.height as f32,
-            BAR_RADIUS,
+            self.radius,
             colors.progress_bg,
         );
 
@@ -108,18 +110,18 @@ impl ProgressBar {
                 self.y as f32,
                 pulse_width,
                 self.height as f32,
-                BAR_RADIUS,
+                self.radius,
                 colors.progress_fill,
             );
         } else if self.progress > 0.0 {
-            let fill_width = (self.width as f32 * self.progress).max(BAR_RADIUS * 2.0);
+            let fill_width = (self.width as f32 * self.progress).max(self.radius * 2.0);
 
             canvas.fill_rounded_rect(
                 self.x as f32,
                 self.y as f32,
                 fill_width,
                 self.height as f32,
-                BAR_RADIUS,
+                self.radius,
                 colors.progress_fill,
             );
         }
@@ -130,7 +132,7 @@ impl ProgressBar {
             self.y as f32,
             self.width as f32,
             self.height as f32,
-            BAR_RADIUS,
+            self.radius,
             colors.progress_border,
             1.0,
         );
