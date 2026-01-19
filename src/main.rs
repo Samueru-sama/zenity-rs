@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use lexopt::prelude::*;
 
-use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, Icon, ListResult, ProgressResult, ScaleResult, TextInfoResult, calendar, entry, file_select, list, message, password, progress, scale, text_info};
+use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, FormsResult, Icon, ListResult, ProgressResult, ScaleResult, TextInfoResult, calendar, entry, file_select, forms, list, message, password, progress, scale, text_info};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -60,6 +60,11 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut scale_step: i32 = 1;
     let mut hide_value = false;
 
+    // Forms options
+    let mut form_entries: Vec<String> = Vec::new();
+    let mut form_passwords: Vec<String> = Vec::new();
+    let mut separator = String::from("|");
+
     // Dialog type
     let mut dialog_type: Option<DialogType> = None;
 
@@ -87,6 +92,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("calendar") => dialog_type = Some(DialogType::Calendar),
             Long("text-info") => dialog_type = Some(DialogType::TextInfo),
             Long("scale") => dialog_type = Some(DialogType::Scale),
+            Long("forms") => dialog_type = Some(DialogType::Forms),
 
             // Common options
             Long("title") => title = parser.value()?.string()?,
@@ -131,6 +137,11 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("max-value") => scale_max = parser.value()?.string()?.parse()?,
             Long("step") => scale_step = parser.value()?.string()?.parse()?,
             Long("hide-value") => hide_value = true,
+
+            // Forms options
+            Long("add-entry") => form_entries.push(parser.value()?.string()?),
+            Long("add-password") => form_passwords.push(parser.value()?.string()?),
+            Long("separator") => separator = parser.value()?.string()?,
 
             Value(val) => {
                 // Positional arguments - for list dialog these are row values
@@ -391,6 +402,31 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             let result = builder.show()?;
             handle_scale_result(result)
         }
+        DialogType::Forms => {
+            let mut builder = forms();
+            if !title.is_empty() {
+                builder = builder.title(&title);
+            }
+            if !text.is_empty() {
+                builder = builder.text(&text);
+            }
+            // Add fields in the order they were specified
+            for label in &form_entries {
+                builder = builder.add_entry(label);
+            }
+            for label in &form_passwords {
+                builder = builder.add_password(label);
+            }
+            builder = builder.separator(&separator);
+            if let Some(w) = width {
+                builder = builder.width(w);
+            }
+            if let Some(h) = height {
+                builder = builder.height(h);
+            }
+            let result = builder.show()?;
+            handle_forms_result(result, &separator)
+        }
     }
 }
 
@@ -471,6 +507,17 @@ fn handle_scale_result(result: ScaleResult) -> Result<i32, Box<dyn std::error::E
     }
 }
 
+fn handle_forms_result(result: FormsResult, separator: &str) -> Result<i32, Box<dyn std::error::Error>> {
+    match result {
+        FormsResult::Values(values) => {
+            println!("{}", values.join(separator));
+            Ok(0)
+        }
+        FormsResult::Cancelled => Ok(1),
+        FormsResult::Closed => Ok(255),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DialogType {
     Info,
@@ -485,6 +532,7 @@ enum DialogType {
     Calendar,
     TextInfo,
     Scale,
+    Forms,
 }
 
 fn print_help() {
@@ -507,6 +555,7 @@ DIALOG TYPES:
     --calendar          Display a calendar date picker
     --text-info         Display scrollable text from file or stdin
     --scale             Display a slider to select a value
+    --forms             Display a form with multiple fields
 
 OPTIONS:
     --title=TEXT        Set the dialog title
@@ -534,6 +583,9 @@ OPTIONS:
     --max-value=N       Maximum value (scale, default: 100)
     --step=N            Step increment (scale, default: 1)
     --hide-value        Hide the value display (scale)
+    --add-entry=LABEL   Add a text entry field (forms)
+    --add-password=LABEL Add a password field (forms)
+    --separator=CHAR    Output separator (forms, default: |)
     -h, --help          Print this help message
     --version           Print version information
 
@@ -551,6 +603,7 @@ EXAMPLES:
     cat LICENSE | zenity-rs --text-info --title="License"
     zenity-rs --text-info --filename=LICENSE --checkbox="I accept the terms"
     zenity-rs --scale --text="Select volume:" --value=50 --min-value=0 --max-value=100
+    zenity-rs --forms --text="Enter details:" --add-entry="Name" --add-entry="Email" --add-password="Password"
 
 EXIT CODES:
     0   OK/Yes clicked, text entered, file/date selected

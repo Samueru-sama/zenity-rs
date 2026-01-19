@@ -3,6 +3,7 @@
 pub(crate) mod calendar;
 pub(crate) mod entry;
 pub(crate) mod file_select;
+pub(crate) mod forms;
 pub(crate) mod list;
 pub(crate) mod message;
 pub(crate) mod progress;
