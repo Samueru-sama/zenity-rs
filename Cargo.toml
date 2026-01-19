@@ -21,7 +21,7 @@ path = "src/lib.rs"
 [features]
 default = ["x11", "wayland"]
 x11 = ["dep:x11rb", "dep:kbvm"]
-wayland = ["dep:wayland-client", "dep:wayland-protocols", "dep:memmap2", "dep:tempfile", "dep:kbvm"]
+wayland = ["dep:wayland-client", "dep:wayland-protocols", "dep:wayland-cursor", "dep:memmap2", "dep:tempfile", "dep:kbvm"]
 
 [dependencies]
 # Rendering
@@ -42,6 +42,7 @@ kbvm = { version = "0.1", features = ["x11"], optional = true }
 # Wayland backend (optional)
 wayland-client = { version = "0.31", default-features = false, optional = true }
 wayland-protocols = { version = "0.32", default-features = false, features = ["client", "staging"], optional = true }
+wayland-cursor = { version = "0.31", optional = true }
 memmap2 = { version = "0.9", optional = true }
 tempfile = { version = "3", optional = true }
 

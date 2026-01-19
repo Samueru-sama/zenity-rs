@@ -32,8 +32,8 @@ use crate::error::{Error, WaylandError};
 use crate::render::Canvas;
 
 use super::{
-    CursorPos, DisplayConnection, KeyEvent, Modifiers, MouseButton, ScrollDirection, Window,
-    WindowEvent,
+    CursorPos, CursorShape, DisplayConnection, KeyEvent, Modifiers, MouseButton, ScrollDirection,
+    Window, WindowEvent,
 };
 
 use self::shm::ShmPool;
@@ -150,6 +150,12 @@ pub(crate) struct WaylandWindow {
     physical_height: i32,
     /// Scale factor for this window
     scale: i32,
+    /// Cursor theme
+    cursor_theme: wayland_cursor::CursorTheme,
+    /// Cursor surface for rendering cursor
+    cursor_surface: WlSurface,
+    /// Current cursor shape
+    current_cursor: CursorShape,
 }
 
 impl WaylandWindow {
@@ -235,6 +241,11 @@ impl WaylandWindow {
             state.keyboard = Some(seat.get_keyboard(&qh, ()));
         }
 
+        // Create cursor theme and surface
+        let cursor_theme = wayland_cursor::CursorTheme::load(conn, shm.clone(), 24)
+            .map_err(|_| Error::Wayland(WaylandError::MissingGlobal("cursor theme")))?;
+        let cursor_surface = compositor.create_surface(&qh, ());
+
         Ok(Self {
             conn: conn.clone(),
             event_queue,
@@ -246,7 +257,37 @@ impl WaylandWindow {
             physical_width,
             physical_height,
             scale,
+            cursor_theme,
+            cursor_surface,
+            current_cursor: CursorShape::Default,
         })
+    }
+
+    /// Updates the cursor on the pointer
+    fn update_cursor(&mut self) {
+        let cursor_name = match self.current_cursor {
+            CursorShape::Default => "default",
+            CursorShape::Text => "text",
+        };
+
+        if let Some(cursor) = self.cursor_theme.get_cursor(cursor_name) {
+            let image = &cursor[0];
+            let (width, height) = image.dimensions();
+            let (xhot, yhot) = image.hotspot();
+
+            self.cursor_surface.attach(Some(&image), 0, 0);
+            self.cursor_surface.damage_buffer(0, 0, width as i32, height as i32);
+            self.cursor_surface.commit();
+
+            if let Some(pointer) = &self.state.pointer {
+                pointer.set_cursor(
+                    self.state.last_serial,
+                    Some(&self.cursor_surface),
+                    xhot as i32,
+                    yhot as i32,
+                );
+            }
+        }
     }
 }
 
@@ -327,6 +368,16 @@ impl Window for WaylandWindow {
 
     fn scale_factor(&self) -> f32 {
         self.scale as f32
+    }
+
+    fn set_cursor(&mut self, shape: CursorShape) -> Result<(), Error> {
+        if self.current_cursor == shape {
+            return Ok(());
+        }
+        self.current_cursor = shape;
+        self.update_cursor();
+        self.conn.flush()?;
+        Ok(())
     }
 }
 

@@ -22,8 +22,8 @@ use crate::error::{Error, X11Error};
 use crate::render::Canvas;
 
 use super::{
-    CursorPos, DisplayConnection, KeyEvent, Modifiers, MouseButton, ScrollDirection, Window,
-    WindowEvent,
+    CursorPos, CursorShape, DisplayConnection, KeyEvent, Modifiers, MouseButton, ScrollDirection,
+    Window, WindowEvent,
 };
 
 x11rb::atom_manager! {
@@ -79,6 +79,10 @@ const MOVERESIZE_MOVE: u32 = 8;
 const KEYCODE_ESC: u8 = 9;
 const WM_CLASS: &[u8] = b"zenity-rs\0zenity-rs\0";
 
+// X11 cursor font character constants
+const XC_LEFT_PTR: u16 = 68;  // Default arrow
+const XC_XTERM: u16 = 152;    // Text I-beam
+
 pub(crate) struct X11Window {
     atoms: Atoms,
     conn: Connection,
@@ -86,6 +90,9 @@ pub(crate) struct X11Window {
     gc: xproto::Gcontext,
     lookup_table: LookupTable,
     xkb_group: u8,
+    cursor_default: xproto::Cursor,
+    cursor_text: xproto::Cursor,
+    current_cursor: CursorShape,
 }
 
 impl X11Window {
@@ -186,6 +193,37 @@ impl X11Window {
             .map_err(|_| Error::X11(X11Error::NoVisual))?;
         let lookup_table = keymap.to_builder().build_lookup_table();
 
+        // Create cursors from the cursor font
+        let cursor_font = conn.generate_id()?;
+        conn.open_font(cursor_font, b"cursor")?;
+
+        let cursor_default = conn.generate_id()?;
+        conn.create_glyph_cursor(
+            cursor_default,
+            cursor_font,
+            cursor_font,
+            XC_LEFT_PTR,
+            XC_LEFT_PTR + 1,
+            0, 0, 0,       // foreground: black
+            0xffff, 0xffff, 0xffff, // background: white
+        )?;
+
+        let cursor_text = conn.generate_id()?;
+        conn.create_glyph_cursor(
+            cursor_text,
+            cursor_font,
+            cursor_font,
+            XC_XTERM,
+            XC_XTERM + 1,
+            0, 0, 0,
+            0xffff, 0xffff, 0xffff,
+        )?;
+
+        conn.close_font(cursor_font)?;
+
+        // Set default cursor on window
+        conn.change_window_attributes(window, &xproto::ChangeWindowAttributesAux::new().cursor(cursor_default))?;
+
         let win = X11Window {
             atoms,
             conn,
@@ -193,6 +231,9 @@ impl X11Window {
             gc,
             lookup_table,
             xkb_group: 0,
+            cursor_default,
+            cursor_text,
+            current_cursor: CursorShape::Default,
         };
         win.set_class(WM_CLASS)?;
         win.set_window_type(WindowType::Dialog)?;
@@ -455,6 +496,25 @@ impl Window for X11Window {
 
     fn scale_factor(&self) -> f32 {
         super::DEFAULT_SCALE
+    }
+
+    fn set_cursor(&mut self, shape: CursorShape) -> Result<(), Error> {
+        if self.current_cursor == shape {
+            return Ok(());
+        }
+
+        let cursor = match shape {
+            CursorShape::Default => self.cursor_default,
+            CursorShape::Text => self.cursor_text,
+        };
+
+        self.conn.change_window_attributes(
+            self.window,
+            &xproto::ChangeWindowAttributesAux::new().cursor(cursor),
+        )?;
+        self.conn.flush()?;
+        self.current_cursor = shape;
+        Ok(())
     }
 }
 

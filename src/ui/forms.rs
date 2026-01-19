@@ -1,6 +1,6 @@
 //! Forms dialog implementation for multiple input fields.
 
-use crate::backend::{Window, WindowEvent, create_window};
+use crate::backend::{CursorShape, Window, WindowEvent, create_window};
 use crate::error::Error;
 use crate::render::{Canvas, Font};
 use crate::ui::Colors;
@@ -304,6 +304,27 @@ impl FormsBuilder {
                 WindowEvent::CursorMove(pos) => {
                     cursor_x = pos.x as i32;
                     cursor_y = pos.y as i32;
+
+                    // Check if cursor is over any input field and update cursor shape
+                    let mut over_input = false;
+                    for input in inputs.iter() {
+                        let ix = input.x();
+                        let iy = input.y();
+                        let iw = input.width();
+                        let ih = input.height();
+
+                        if cursor_x >= ix && cursor_x < ix + iw as i32
+                            && cursor_y >= iy && cursor_y < iy + ih as i32
+                        {
+                            over_input = true;
+                            break;
+                        }
+                    }
+                    let _ = window.set_cursor(if over_input {
+                        CursorShape::Text
+                    } else {
+                        CursorShape::Default
+                    });
                 }
                 WindowEvent::ButtonPress(crate::backend::MouseButton::Left) => {
                     // Check if clicking on any input field

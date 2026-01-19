@@ -19,6 +19,16 @@ pub(crate) trait DisplayConnection: Sized {
     fn create_window(&self, width: u16, height: u16) -> Result<Self::Window, Error>;
 }
 
+/// Cursor shape types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum CursorShape {
+    /// Default arrow cursor.
+    #[default]
+    Default,
+    /// Text input (I-beam) cursor.
+    Text,
+}
+
 /// Trait for interacting with a window.
 pub(crate) trait Window {
     fn set_title(&mut self, title: &str) -> Result<(), Error>;
@@ -28,6 +38,7 @@ pub(crate) trait Window {
     fn poll_for_event(&mut self) -> Result<Option<WindowEvent>, Error>;
     fn start_drag(&mut self) -> Result<(), Error>;
     fn scale_factor(&self) -> f32;
+    fn set_cursor(&mut self, shape: CursorShape) -> Result<(), Error>;
 }
 
 /// Events that can be emitted by a window.
@@ -154,6 +165,15 @@ impl Window for AnyWindow {
             AnyWindow::X11(w) => w.scale_factor(),
             #[cfg(feature = "wayland")]
             AnyWindow::Wayland(w) => w.scale_factor(),
+        }
+    }
+
+    fn set_cursor(&mut self, shape: CursorShape) -> Result<(), Error> {
+        match self {
+            #[cfg(feature = "x11")]
+            AnyWindow::X11(w) => w.set_cursor(shape),
+            #[cfg(feature = "wayland")]
+            AnyWindow::Wayland(w) => w.set_cursor(shape),
         }
     }
 }
