@@ -50,11 +50,10 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.build.TARGET }}
+          components: rust-src
 
       - name: Build
-        env:
-          RUSTFLAGS: "-C target-feature=+crt-static -C link-self-contained=yes"
-        run: cargo build --release --locked --target ${{ matrix.build.TARGET }}
+        run: cargo build --release --locked --target ${{ matrix.build.TARGET }} -Z build-std=std,panic_abort
 
       - name: Prepare release assets
         shell: bash
