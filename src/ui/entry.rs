@@ -1,6 +1,6 @@
 //! Entry dialog implementation for text input.
 
-use crate::backend::{Window, WindowEvent, create_window};
+use crate::backend::{CursorShape, Window, WindowEvent, create_window};
 use crate::error::Error;
 use crate::render::{Canvas, Font};
 use crate::ui::Colors;
@@ -234,6 +234,10 @@ impl EntryBuilder {
         window.set_contents(&canvas)?;
         window.show()?;
 
+        // Track cursor position
+        let mut cursor_x = 0i32;
+        let mut cursor_y = 0i32;
+
         // Event loop
         loop {
             let event = window.wait_for_event()?;
@@ -255,6 +259,25 @@ impl EntryBuilder {
                         prompt_y,
                     );
                     window.set_contents(&canvas)?;
+                }
+                WindowEvent::CursorMove(pos) => {
+                    cursor_x = pos.x as i32;
+                    cursor_y = pos.y as i32;
+
+                    // Check if cursor is over the input field
+                    let ix = input.x();
+                    let iy = input.y();
+                    let iw = input.width();
+                    let ih = input.height();
+
+                    let over_input = cursor_x >= ix && cursor_x < ix + iw as i32
+                        && cursor_y >= iy && cursor_y < iy + ih as i32;
+
+                    let _ = window.set_cursor(if over_input {
+                        CursorShape::Text
+                    } else {
+                        CursorShape::Default
+                    });
                 }
                 _ => {}
             }
