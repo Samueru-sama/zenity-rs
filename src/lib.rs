@@ -15,6 +15,7 @@ pub use ui::file_select::{FileSelectBuilder, FileSelectResult};
 pub use ui::list::{ListBuilder, ListMode, ListResult};
 pub use ui::message::MessageBuilder;
 pub use ui::progress::{ProgressBuilder, ProgressResult};
+pub use ui::text_info::{TextInfoBuilder, TextInfoResult};
 
 /// Creates a new message dialog builder.
 ///
@@ -95,4 +96,9 @@ pub fn list() -> ListBuilder {
 /// Creates a new calendar date picker dialog builder.
 pub fn calendar() -> CalendarBuilder {
     CalendarBuilder::new()
+}
+
+/// Creates a new text info dialog builder.
+pub fn text_info() -> TextInfoBuilder {
+    TextInfoBuilder::new()
 }

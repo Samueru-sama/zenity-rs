@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use lexopt::prelude::*;
 
-use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, Icon, ListResult, ProgressResult, calendar, entry, file_select, list, message, password, progress};
+use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, Icon, ListResult, ProgressResult, TextInfoResult, calendar, entry, file_select, list, message, password, progress, text_info};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -50,6 +50,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut cal_month: Option<u32> = None;
     let mut cal_day: Option<u32> = None;
 
+    // Text info options
+    let mut checkbox_text = String::new();
+
     // Dialog type
     let mut dialog_type: Option<DialogType> = None;
 
@@ -75,6 +78,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("file-selection") => dialog_type = Some(DialogType::FileSelection),
             Long("list") => dialog_type = Some(DialogType::List),
             Long("calendar") => dialog_type = Some(DialogType::Calendar),
+            Long("text-info") => dialog_type = Some(DialogType::TextInfo),
 
             // Common options
             Long("title") => title = parser.value()?.string()?,
@@ -109,6 +113,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("year") => cal_year = Some(parser.value()?.string()?.parse()?),
             Long("month") => cal_month = Some(parser.value()?.string()?.parse()?),
             Long("day") => cal_day = Some(parser.value()?.string()?.parse()?),
+
+            // Text info options
+            Long("checkbox") => checkbox_text = parser.value()?.string()?,
 
             Value(val) => {
                 // Positional arguments - for list dialog these are row values
@@ -325,6 +332,27 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             let result = builder.show()?;
             handle_calendar_result(result)
         }
+        DialogType::TextInfo => {
+            let mut builder = text_info();
+            if !title.is_empty() {
+                builder = builder.title(&title);
+            }
+            if !filename.is_empty() {
+                builder = builder.filename(&filename);
+            }
+            let has_checkbox = !checkbox_text.is_empty();
+            if has_checkbox {
+                builder = builder.checkbox(&checkbox_text);
+            }
+            if let Some(w) = width {
+                builder = builder.width(w);
+            }
+            if let Some(h) = height {
+                builder = builder.height(h);
+            }
+            let result = builder.show()?;
+            handle_text_info_result(result, has_checkbox)
+        }
     }
 }
 
@@ -378,6 +406,22 @@ fn handle_entry_result(result: EntryResult) -> Result<i32, Box<dyn std::error::E
     }
 }
 
+fn handle_text_info_result(result: TextInfoResult, has_checkbox: bool) -> Result<i32, Box<dyn std::error::Error>> {
+    match result {
+        TextInfoResult::Ok { checkbox_checked } => {
+            // If checkbox was specified but not checked, return 1
+            // Otherwise return 0
+            if has_checkbox && !checkbox_checked {
+                Ok(1)
+            } else {
+                Ok(0)
+            }
+        }
+        TextInfoResult::Cancelled => Ok(1),
+        TextInfoResult::Closed => Ok(255),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DialogType {
     Info,
@@ -390,6 +434,7 @@ enum DialogType {
     FileSelection,
     List,
     Calendar,
+    TextInfo,
 }
 
 fn print_help() {
@@ -410,6 +455,7 @@ DIALOG TYPES:
     --file-selection    Display a file selection dialog
     --list              Display a list selection dialog
     --calendar          Display a calendar date picker
+    --text-info         Display scrollable text from file or stdin
 
 OPTIONS:
     --title=TEXT        Set the dialog title
@@ -431,6 +477,7 @@ OPTIONS:
     --year=N            Initial year (calendar)
     --month=N           Initial month 1-12 (calendar)
     --day=N             Initial day 1-31 (calendar)
+    --checkbox=TEXT     Add checkbox with label (text-info)
     -h, --help          Print this help message
     --version           Print version information
 
@@ -444,6 +491,9 @@ EXAMPLES:
     zenity-rs --list --column="Name" --column="Size" file1 10KB file2 20KB
     zenity-rs --list --checklist --column="Select" --column="Item" FALSE A TRUE B
     zenity-rs --calendar --text="Select date:"
+    zenity-rs --text-info --filename=README.md --title="Read Me"
+    cat LICENSE | zenity-rs --text-info --title="License"
+    zenity-rs --text-info --filename=LICENSE --checkbox="I accept the terms"
 
 EXIT CODES:
     0   OK/Yes clicked, text entered, file/date selected
