@@ -44,6 +44,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut list_values: Vec<String> = Vec::new();
     let mut checklist = false;
     let mut radiolist = false;
+    let mut hidden_columns: Vec<usize> = Vec::new();
 
     // Calendar options
     let mut cal_year: Option<u32> = None;
@@ -122,6 +123,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("column") => columns.push(parser.value()?.string()?),
             Long("checklist") => checklist = true,
             Long("radiolist") => radiolist = true,
+            Long("hide-column") => hidden_columns.push(parser.value()?.string()?.parse()?),
 
             // Calendar options
             Long("year") => cal_year = Some(parser.value()?.string()?.parse()?),
@@ -315,6 +317,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 builder = builder.checklist();
             } else if radiolist {
                 builder = builder.radiolist();
+            }
+            for col in &hidden_columns {
+                builder = builder.hide_column(*col);
             }
 
             // Build rows from list_values based on column count
@@ -579,6 +584,7 @@ DIALOG TYPES AND OPTIONS:
       --column=TEXT     Add a column header (can be repeated)
       --checklist       Enable multi-select with checkboxes
       --radiolist       Enable single-select with radio buttons
+      --hide-column=N   Hide column N (1-based, can be repeated)
       [VALUES...]       Row values (number must match column count)
 
   --calendar            Display a calendar date picker

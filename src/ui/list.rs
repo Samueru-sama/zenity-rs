@@ -54,6 +54,7 @@ pub struct ListBuilder {
     columns: Vec<String>,
     rows: Vec<Vec<String>>,
     mode: ListMode,
+    hidden_columns: Vec<usize>,
     width: Option<u32>,
     height: Option<u32>,
     colors: Option<&'static Colors>,
@@ -67,6 +68,7 @@ impl ListBuilder {
             columns: Vec::new(),
             rows: Vec::new(),
             mode: ListMode::Single,
+            hidden_columns: Vec::new(),
             width: None,
             height: None,
             colors: None,
@@ -128,6 +130,15 @@ impl ListBuilder {
         self
     }
 
+    /// Hide a column by index (1-based, like zenity).
+    /// Hidden columns are not displayed but their values are still included in output.
+    pub fn hide_column(mut self, col: usize) -> Self {
+        if col > 0 {
+            self.hidden_columns.push(col - 1); // Convert to 0-based
+        }
+        self
+    }
+
     pub fn show(self) -> Result<ListResult, Error> {
         let colors = self.colors.unwrap_or_else(|| crate::ui::detect_theme());
 
@@ -149,11 +160,30 @@ impl ListBuilder {
         };
 
         // Columns - skip first column header for checklist/radiolist
-        let columns: Vec<&str> = if self.mode != ListMode::Single && !self.columns.is_empty() {
+        let all_columns: Vec<&str> = if self.mode != ListMode::Single && !self.columns.is_empty() {
             self.columns[1..].iter().map(|s| s.as_str()).collect()
         } else {
             self.columns.iter().map(|s| s.as_str()).collect()
         };
+
+        // Determine which columns are visible (not hidden)
+        let visible_col_indices: Vec<usize> = (0..all_columns.len())
+            .filter(|i| !self.hidden_columns.contains(i))
+            .collect();
+
+        // Get visible columns only
+        let columns: Vec<&str> = visible_col_indices.iter()
+            .map(|&i| all_columns[i])
+            .collect();
+
+        // Create display rows with only visible columns (original rows kept for result)
+        let display_rows: Vec<Vec<String>> = rows.iter()
+            .map(|row| {
+                visible_col_indices.iter()
+                    .filter_map(|&i| row.get(i).cloned())
+                    .collect()
+            })
+            .collect();
 
         let num_cols = columns.len().max(1);
         let num_rows = rows.len();
@@ -161,17 +191,17 @@ impl ListBuilder {
         // First pass: calculate LOGICAL dimensions using scale 1.0
         let temp_font = Font::load(1.0);
 
-        // Calculate logical column widths
+        // Calculate logical column widths (only for visible columns)
         let mut logical_col_widths: Vec<u32> = vec![100; num_cols];
         for (i, col) in columns.iter().enumerate() {
             let (w, _) = temp_font.render(col).measure();
             logical_col_widths[i] = logical_col_widths[i].max(w as u32 + 20);
         }
         for row in &rows {
-            for (i, cell) in row.iter().enumerate() {
-                if i < num_cols {
+            for (vi, &orig_i) in visible_col_indices.iter().enumerate() {
+                if let Some(cell) = row.get(orig_i) {
                     let (w, _) = temp_font.render(cell).measure();
-                    logical_col_widths[i] = logical_col_widths[i].max(w as u32 + 20);
+                    logical_col_widths[vi] = logical_col_widths[vi].max(w as u32 + 20);
                 }
             }
         }
@@ -409,7 +439,7 @@ impl ListBuilder {
 
         // Initial draw
         draw(
-            &mut canvas, colors, &font, &self.text, &columns, &rows, &col_widths,
+            &mut canvas, colors, &font, &self.text, &columns, &display_rows, &col_widths,
             &selected, single_selected, scroll_offset, hovered_row, self.mode,
             &ok_button, &cancel_button,
             padding, row_height, checkbox_size, checkbox_col,
@@ -574,7 +604,7 @@ impl ListBuilder {
 
             if needs_redraw {
                 draw(
-                    &mut canvas, colors, &font, &self.text, &columns, &rows, &col_widths,
+                    &mut canvas, colors, &font, &self.text, &columns, &display_rows, &col_widths,
                     &selected, single_selected, scroll_offset, hovered_row, self.mode,
                     &ok_button, &cancel_button,
                     padding, row_height, checkbox_size, checkbox_col,
