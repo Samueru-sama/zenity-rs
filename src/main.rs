@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use lexopt::prelude::*;
 
-use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, Icon, ListResult, ProgressResult, TextInfoResult, calendar, entry, file_select, list, message, password, progress, text_info};
+use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, Icon, ListResult, ProgressResult, ScaleResult, TextInfoResult, calendar, entry, file_select, list, message, password, progress, scale, text_info};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -53,6 +53,13 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     // Text info options
     let mut checkbox_text = String::new();
 
+    // Scale options
+    let mut scale_value: i32 = 0;
+    let mut scale_min: i32 = 0;
+    let mut scale_max: i32 = 100;
+    let mut scale_step: i32 = 1;
+    let mut hide_value = false;
+
     // Dialog type
     let mut dialog_type: Option<DialogType> = None;
 
@@ -79,6 +86,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("list") => dialog_type = Some(DialogType::List),
             Long("calendar") => dialog_type = Some(DialogType::Calendar),
             Long("text-info") => dialog_type = Some(DialogType::TextInfo),
+            Long("scale") => dialog_type = Some(DialogType::Scale),
 
             // Common options
             Long("title") => title = parser.value()?.string()?,
@@ -116,6 +124,13 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
 
             // Text info options
             Long("checkbox") => checkbox_text = parser.value()?.string()?,
+
+            // Scale options
+            Long("value") => scale_value = parser.value()?.string()?.parse()?,
+            Long("min-value") => scale_min = parser.value()?.string()?.parse()?,
+            Long("max-value") => scale_max = parser.value()?.string()?.parse()?,
+            Long("step") => scale_step = parser.value()?.string()?.parse()?,
+            Long("hide-value") => hide_value = true,
 
             Value(val) => {
                 // Positional arguments - for list dialog these are row values
@@ -353,6 +368,29 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             let result = builder.show()?;
             handle_text_info_result(result, has_checkbox)
         }
+        DialogType::Scale => {
+            let mut builder = scale();
+            if !title.is_empty() {
+                builder = builder.title(&title);
+            }
+            if !text.is_empty() {
+                builder = builder.text(&text);
+            }
+            builder = builder
+                .value(scale_value)
+                .min_value(scale_min)
+                .max_value(scale_max)
+                .step(scale_step)
+                .hide_value(hide_value);
+            if let Some(w) = width {
+                builder = builder.width(w);
+            }
+            if let Some(h) = height {
+                builder = builder.height(h);
+            }
+            let result = builder.show()?;
+            handle_scale_result(result)
+        }
     }
 }
 
@@ -422,6 +460,17 @@ fn handle_text_info_result(result: TextInfoResult, has_checkbox: bool) -> Result
     }
 }
 
+fn handle_scale_result(result: ScaleResult) -> Result<i32, Box<dyn std::error::Error>> {
+    match result {
+        ScaleResult::Value(v) => {
+            println!("{}", v);
+            Ok(0)
+        }
+        ScaleResult::Cancelled => Ok(1),
+        ScaleResult::Closed => Ok(255),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DialogType {
     Info,
@@ -435,6 +484,7 @@ enum DialogType {
     List,
     Calendar,
     TextInfo,
+    Scale,
 }
 
 fn print_help() {
@@ -456,6 +506,7 @@ DIALOG TYPES:
     --list              Display a list selection dialog
     --calendar          Display a calendar date picker
     --text-info         Display scrollable text from file or stdin
+    --scale             Display a slider to select a value
 
 OPTIONS:
     --title=TEXT        Set the dialog title
@@ -478,6 +529,11 @@ OPTIONS:
     --month=N           Initial month 1-12 (calendar)
     --day=N             Initial day 1-31 (calendar)
     --checkbox=TEXT     Add checkbox with label (text-info)
+    --value=N           Initial value (scale, default: 0)
+    --min-value=N       Minimum value (scale, default: 0)
+    --max-value=N       Maximum value (scale, default: 100)
+    --step=N            Step increment (scale, default: 1)
+    --hide-value        Hide the value display (scale)
     -h, --help          Print this help message
     --version           Print version information
 
@@ -494,6 +550,7 @@ EXAMPLES:
     zenity-rs --text-info --filename=README.md --title="Read Me"
     cat LICENSE | zenity-rs --text-info --title="License"
     zenity-rs --text-info --filename=LICENSE --checkbox="I accept the terms"
+    zenity-rs --scale --text="Select volume:" --value=50 --min-value=0 --max-value=100
 
 EXIT CODES:
     0   OK/Yes clicked, text entered, file/date selected

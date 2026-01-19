@@ -6,6 +6,7 @@ pub(crate) mod file_select;
 pub(crate) mod list;
 pub(crate) mod message;
 pub(crate) mod progress;
+pub(crate) mod scale;
 pub(crate) mod text_info;
 pub(crate) mod widgets;
 
