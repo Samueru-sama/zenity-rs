@@ -12,6 +12,7 @@ A lightweight, pure Rust implementation for displaying GUI dialogs from the comm
 - **Calendar**: Date picker dialog
 - **Text info**: Display scrollable text from file or stdin
 - **Scale**: Slider to select a numeric value
+- **Forms**: Multiple input fields in a single dialog
 
 ### Highlights
 
@@ -145,6 +146,19 @@ zenity-rs --scale --text="Select:" --min-value=0 --max-value=1000 --step=10
 
 # Hide the value display
 zenity-rs --scale --text="Level:" --hide-value
+```
+
+### Forms
+
+```bash
+# Multiple text fields
+zenity-rs --forms --text="Enter details:" --add-entry="Name" --add-entry="Email"
+
+# With password field
+zenity-rs --forms --text="Login:" --add-entry="Username" --add-password="Password"
+
+# Custom separator (default is |)
+zenity-rs --forms --add-entry="First" --add-entry="Last" --separator=","
 ```
 
 ### Common Options
