@@ -6,13 +6,12 @@ use std::{
 };
 
 use wayland_client::{
-    QueueHandle,
     protocol::{wl_buffer::WlBuffer, wl_shm::WlShm, wl_shm_pool::WlShmPool},
+    QueueHandle,
 };
 
-use crate::error::Error;
-
 use super::WaylandState;
+use crate::error::Error;
 
 /// A shared memory pool for creating Wayland buffers.
 pub(super) struct ShmPool {

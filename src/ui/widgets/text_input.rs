@@ -1,10 +1,11 @@
 //! Text input widget for single-line text entry.
 
-use crate::backend::{Modifiers, WindowEvent};
-use crate::render::{Canvas, Font, Rgba};
-use crate::ui::Colors;
-
 use super::Widget;
+use crate::{
+    backend::{Modifiers, WindowEvent},
+    render::{Canvas, Font, Rgba},
+    ui::Colors,
+};
 
 const INPUT_HEIGHT: u32 = 32;
 const INPUT_RADIUS: f32 = 5.0;

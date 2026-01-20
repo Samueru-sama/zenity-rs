@@ -2,12 +2,15 @@
 
 use std::io::Read;
 
-use crate::backend::{Window, WindowEvent, create_window};
-use crate::error::Error;
-use crate::render::{Canvas, Font, rgb};
-use crate::ui::Colors;
-use crate::ui::widgets::Widget;
-use crate::ui::widgets::button::Button;
+use crate::{
+    backend::{create_window, Window, WindowEvent},
+    error::Error,
+    render::{rgb, Canvas, Font},
+    ui::{
+        widgets::{button::Button, Widget},
+        Colors,
+    },
+};
 
 const BASE_PADDING: u32 = 16;
 const BASE_LINE_HEIGHT: u32 = 20;
@@ -31,8 +34,14 @@ pub enum TextInfoResult {
 impl TextInfoResult {
     pub fn exit_code(&self) -> i32 {
         match self {
-            TextInfoResult::Ok { checkbox_checked } => {
-                if *checkbox_checked { 0 } else { 1 }
+            TextInfoResult::Ok {
+                checkbox_checked,
+            } => {
+                if *checkbox_checked {
+                    0
+                } else {
+                    1
+                }
             }
             TextInfoResult::Cancelled => 1,
             TextInfoResult::Closed => 255,
@@ -99,11 +108,11 @@ impl TextInfoBuilder {
 
         // Read content from file or stdin
         let content = if let Some(ref filename) = self.filename {
-            std::fs::read_to_string(filename)
-                .map_err(|e| Error::Io(e))?
+            std::fs::read_to_string(filename).map_err(|e| Error::Io(e))?
         } else {
             let mut buf = String::new();
-            std::io::stdin().read_to_string(&mut buf)
+            std::io::stdin()
+                .read_to_string(&mut buf)
                 .map_err(|e| Error::Io(e))?;
             buf
         };
@@ -112,11 +121,18 @@ impl TextInfoBuilder {
 
         // Use provided dimensions or defaults
         let logical_width = self.width.unwrap_or(BASE_DEFAULT_WIDTH).max(BASE_MIN_WIDTH);
-        let logical_height = self.height.unwrap_or(BASE_DEFAULT_HEIGHT).max(BASE_MIN_HEIGHT);
+        let logical_height = self
+            .height
+            .unwrap_or(BASE_DEFAULT_HEIGHT)
+            .max(BASE_MIN_HEIGHT);
 
         // Create window with LOGICAL dimensions
         let mut window = create_window(logical_width as u16, logical_height as u16)?;
-        window.set_title(if self.title.is_empty() { "Text" } else { &self.title })?;
+        window.set_title(if self.title.is_empty() {
+            "Text"
+        } else {
+            &self.title
+        })?;
 
         // Get the actual scale factor from the window (compositor scale)
         let scale = window.scale_factor();
@@ -139,7 +155,11 @@ impl TextInfoBuilder {
 
         // Layout calculation
         let button_height = (32.0 * scale) as u32;
-        let checkbox_row_height = if has_checkbox { checkbox_size + (8.0 * scale) as u32 } else { 0 };
+        let checkbox_row_height = if has_checkbox {
+            checkbox_size + (8.0 * scale) as u32
+        } else {
+            0
+        };
         let button_y = (physical_height - padding - button_height) as i32;
         let checkbox_y = if has_checkbox {
             button_y - checkbox_row_height as i32 - (8.0 * scale) as i32
@@ -244,14 +264,19 @@ impl TextInfoBuilder {
 
             // Text area background
             canvas.fill_rounded_rect(
-                text_area_x as f32, text_area_y as f32,
-                text_area_w as f32, text_area_h as f32,
-                6.0 * scale, colors.input_bg,
+                text_area_x as f32,
+                text_area_y as f32,
+                text_area_w as f32,
+                text_area_h as f32,
+                6.0 * scale,
+                colors.input_bg,
             );
 
             // Draw visible lines
             let text_padding = (8.0 * scale) as i32;
-            for (i, line_idx) in (scroll_offset..wrapped_lines.len().min(scroll_offset + visible_lines)).enumerate() {
+            for (i, line_idx) in
+                (scroll_offset..wrapped_lines.len().min(scroll_offset + visible_lines)).enumerate()
+            {
                 let line = &wrapped_lines[line_idx];
                 if !line.is_empty() {
                     let tc = font.render(line).with_color(colors.text).finish();
@@ -265,7 +290,8 @@ impl TextInfoBuilder {
                 let sb_x = text_area_x + text_area_w as i32 - (10.0 * scale) as i32;
                 let sb_y = text_area_y as f32 + 4.0 * scale;
                 let sb_h = text_area_h as f32 - 8.0 * scale;
-                let thumb_h = (visible_lines as f32 / wrapped_lines.len() as f32 * sb_h).max(20.0 * scale);
+                let thumb_h =
+                    (visible_lines as f32 / wrapped_lines.len() as f32 * sb_h).max(20.0 * scale);
                 let max_scroll = wrapped_lines.len().saturating_sub(visible_lines);
                 let thumb_y = if max_scroll > 0 {
                     scroll_offset as f32 / max_scroll as f32 * (sb_h - thumb_h)
@@ -275,23 +301,33 @@ impl TextInfoBuilder {
 
                 // Track
                 canvas.fill_rounded_rect(
-                    sb_x as f32, sb_y,
-                    6.0 * scale, sb_h,
-                    3.0 * scale, darken(colors.input_bg, 0.05),
+                    sb_x as f32,
+                    sb_y,
+                    6.0 * scale,
+                    sb_h,
+                    3.0 * scale,
+                    darken(colors.input_bg, 0.05),
                 );
                 // Thumb
                 canvas.fill_rounded_rect(
-                    sb_x as f32, sb_y + thumb_y,
-                    6.0 * scale, thumb_h,
-                    3.0 * scale, colors.input_border,
+                    sb_x as f32,
+                    sb_y + thumb_y,
+                    6.0 * scale,
+                    thumb_h,
+                    3.0 * scale,
+                    colors.input_border,
                 );
             }
 
             // Border
             canvas.stroke_rounded_rect(
-                text_area_x as f32, text_area_y as f32,
-                text_area_w as f32, text_area_h as f32,
-                6.0 * scale, colors.input_border, 1.0,
+                text_area_x as f32,
+                text_area_y as f32,
+                text_area_w as f32,
+                text_area_h as f32,
+                6.0 * scale,
+                colors.input_border,
+                1.0,
             );
 
             // Checkbox
@@ -306,24 +342,33 @@ impl TextInfoBuilder {
                     colors.input_bg
                 };
                 canvas.fill_rounded_rect(
-                    cb_x as f32, cb_y as f32,
-                    checkbox_size as f32, checkbox_size as f32,
-                    3.0 * scale, cb_bg,
+                    cb_x as f32,
+                    cb_y as f32,
+                    checkbox_size as f32,
+                    checkbox_size as f32,
+                    3.0 * scale,
+                    cb_bg,
                 );
                 canvas.stroke_rounded_rect(
-                    cb_x as f32, cb_y as f32,
-                    checkbox_size as f32, checkbox_size as f32,
-                    3.0 * scale, colors.input_border, 1.0,
+                    cb_x as f32,
+                    cb_y as f32,
+                    checkbox_size as f32,
+                    checkbox_size as f32,
+                    3.0 * scale,
+                    colors.input_border,
+                    1.0,
                 );
 
                 // Check mark
                 if checkbox_checked {
                     let inset = (3.0 * scale) as i32;
                     canvas.fill_rounded_rect(
-                        (cb_x + inset) as f32, (cb_y + inset) as f32,
+                        (cb_x + inset) as f32,
+                        (cb_y + inset) as f32,
                         (checkbox_size as i32 - inset * 2) as f32,
                         (checkbox_size as i32 - inset * 2) as f32,
-                        2.0 * scale, colors.input_border_focused,
+                        2.0 * scale,
+                        colors.input_border_focused,
                     );
                 }
 
@@ -340,11 +385,26 @@ impl TextInfoBuilder {
 
         // Initial draw
         draw(
-            &mut canvas, colors, &font, &wrapped_lines, scroll_offset, visible_lines,
-            &self.checkbox_text, checkbox_checked, checkbox_hovered,
-            &ok_button, &cancel_button,
-            padding, line_height, checkbox_size,
-            text_area_x, text_area_y, text_area_w, text_area_h, checkbox_y, scale,
+            &mut canvas,
+            colors,
+            &font,
+            &wrapped_lines,
+            scroll_offset,
+            visible_lines,
+            &self.checkbox_text,
+            checkbox_checked,
+            checkbox_hovered,
+            &ok_button,
+            &cancel_button,
+            padding,
+            line_height,
+            checkbox_size,
+            text_area_x,
+            text_area_y,
+            text_area_w,
+            text_area_h,
+            checkbox_y,
+            scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -453,7 +513,9 @@ impl TextInfoBuilder {
                             }
                         }
                         KEY_RETURN => {
-                            return Ok(TextInfoResult::Ok { checkbox_checked });
+                            return Ok(TextInfoResult::Ok {
+                                checkbox_checked,
+                            });
                         }
                         KEY_ESCAPE => {
                             return Ok(TextInfoResult::Cancelled);
@@ -468,7 +530,9 @@ impl TextInfoBuilder {
             needs_redraw |= cancel_button.process_event(&event);
 
             if ok_button.was_clicked() {
-                return Ok(TextInfoResult::Ok { checkbox_checked });
+                return Ok(TextInfoResult::Ok {
+                    checkbox_checked,
+                });
             }
             if cancel_button.was_clicked() {
                 return Ok(TextInfoResult::Cancelled);
@@ -485,11 +549,26 @@ impl TextInfoBuilder {
 
             if needs_redraw {
                 draw(
-                    &mut canvas, colors, &font, &wrapped_lines, scroll_offset, visible_lines,
-                    &self.checkbox_text, checkbox_checked, checkbox_hovered,
-                    &ok_button, &cancel_button,
-                    padding, line_height, checkbox_size,
-                    text_area_x, text_area_y, text_area_w, text_area_h, checkbox_y, scale,
+                    &mut canvas,
+                    colors,
+                    &font,
+                    &wrapped_lines,
+                    scroll_offset,
+                    visible_lines,
+                    &self.checkbox_text,
+                    checkbox_checked,
+                    checkbox_hovered,
+                    &ok_button,
+                    &cancel_button,
+                    padding,
+                    line_height,
+                    checkbox_size,
+                    text_area_x,
+                    text_area_y,
+                    text_area_w,
+                    text_area_h,
+                    checkbox_y,
+                    scale,
                 );
                 window.set_contents(&canvas)?;
             }

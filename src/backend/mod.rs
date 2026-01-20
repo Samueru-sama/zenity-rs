@@ -3,10 +3,9 @@ pub(crate) mod wayland;
 #[cfg(feature = "x11")]
 pub(crate) mod x11;
 
-use crate::error::Error;
-use crate::render::Canvas;
-
 use bitflags::bitflags;
+
+use crate::{error::Error, render::Canvas};
 
 /// Default scale factor for rendering
 pub(crate) const DEFAULT_SCALE: f32 = 1.0;
@@ -184,10 +183,12 @@ pub(crate) fn create_window(width: u16, height: u16) -> Result<AnyWindow, Error>
     #[cfg(feature = "wayland")]
     if std::env::var_os("WAYLAND_DISPLAY").is_some() {
         match wayland::Connection::connect() {
-            Ok(conn) => match conn.create_window(width, height) {
-                Ok(w) => return Ok(AnyWindow::Wayland(w)),
-                Err(e) => eprintln!("Wayland window creation failed: {e}"),
-            },
+            Ok(conn) => {
+                match conn.create_window(width, height) {
+                    Ok(w) => return Ok(AnyWindow::Wayland(w)),
+                    Err(e) => eprintln!("Wayland window creation failed: {e}"),
+                }
+            }
             Err(e) => eprintln!("Wayland connection failed: {e}"),
         }
     }

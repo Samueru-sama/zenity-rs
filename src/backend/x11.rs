@@ -7,23 +7,24 @@ use x11rb::{
     connection::Connection as X11rbConnection,
     properties::WmSizeHints,
     protocol::{
-        Event,
         xproto::{
             self, AtomEnum, ClientMessageEvent, ConfigureWindowAux, ConnectionExt as _,
             CreateWindowAux, EventMask, ImageFormat, KeyButMask, PropMode, StackMode, VisualClass,
             WindowClass,
         },
+        Event,
     },
     rust_connection::RustConnection,
     wrapper::ConnectionExt as _,
 };
 
-use crate::error::{Error, X11Error};
-use crate::render::Canvas;
-
 use super::{
     CursorPos, CursorShape, DisplayConnection, KeyEvent, Modifiers, MouseButton, ScrollDirection,
     Window, WindowEvent,
+};
+use crate::{
+    error::{Error, X11Error},
+    render::Canvas,
 };
 
 x11rb::atom_manager! {
@@ -80,8 +81,8 @@ const KEYCODE_ESC: u8 = 9;
 const WM_CLASS: &[u8] = b"zenity-rs\0zenity-rs\0";
 
 // X11 cursor font character constants
-const XC_LEFT_PTR: u16 = 68;  // Default arrow
-const XC_XTERM: u16 = 152;    // Text I-beam
+const XC_LEFT_PTR: u16 = 68; // Default arrow
+const XC_XTERM: u16 = 152; // Text I-beam
 
 pub(crate) struct X11Window {
     atoms: Atoms,
@@ -162,7 +163,11 @@ impl X11Window {
             .check()?;
 
         let gc = conn.generate_id()?;
-        conn.create_gc(gc, window, &xproto::CreateGCAux::new().graphics_exposures(0))?;
+        conn.create_gc(
+            gc,
+            window,
+            &xproto::CreateGCAux::new().graphics_exposures(0),
+        )?;
 
         // Opt into getting ClientMessage event on close instead of SIGTERM
         conn.change_property32(
@@ -204,8 +209,12 @@ impl X11Window {
             cursor_font,
             XC_LEFT_PTR,
             XC_LEFT_PTR + 1,
-            0, 0, 0,       // foreground: black
-            0xffff, 0xffff, 0xffff, // background: white
+            0,
+            0,
+            0, // foreground: black
+            0xffff,
+            0xffff,
+            0xffff, // background: white
         )?;
 
         let cursor_text = conn.generate_id()?;
@@ -215,14 +224,21 @@ impl X11Window {
             cursor_font,
             XC_XTERM,
             XC_XTERM + 1,
-            0, 0, 0,
-            0xffff, 0xffff, 0xffff,
+            0,
+            0,
+            0,
+            0xffff,
+            0xffff,
+            0xffff,
         )?;
 
         conn.close_font(cursor_font)?;
 
         // Set default cursor on window
-        conn.change_window_attributes(window, &xproto::ChangeWindowAttributesAux::new().cursor(cursor_default))?;
+        conn.change_window_attributes(
+            window,
+            &xproto::ChangeWindowAttributesAux::new().cursor(cursor_default),
+        )?;
 
         let win = X11Window {
             atoms,
@@ -290,9 +306,7 @@ impl X11Window {
                 let mods = convert_to_kbvm_mods(press.state);
 
                 let group = kbvm::GroupIndex(self.xkb_group as u32);
-                let lookup = self
-                    .lookup_table
-                    .lookup(group, mods, keycode);
+                let lookup = self.lookup_table.lookup(group, mods, keycode);
 
                 let keysym = lookup
                     .clone()
@@ -309,7 +323,10 @@ impl X11Window {
                     }
                 }
 
-                WindowEvent::KeyPress(KeyEvent { keysym, modifiers })
+                WindowEvent::KeyPress(KeyEvent {
+                    keysym,
+                    modifiers,
+                })
             }
             Event::KeyRelease(release) if release.event == self.window => {
                 let modifiers = convert_modifiers(release.state);
@@ -325,27 +342,38 @@ impl X11Window {
                     .map(|p| p.keysym().0)
                     .unwrap_or(0);
 
-                WindowEvent::KeyRelease(KeyEvent { keysym, modifiers })
+                WindowEvent::KeyRelease(KeyEvent {
+                    keysym,
+                    modifiers,
+                })
             }
             Event::Expose(ex) if ex.count == 0 => WindowEvent::RedrawRequested,
-            Event::EnterNotify(e) => WindowEvent::CursorEnter(CursorPos {
-                x: e.event_x,
-                y: e.event_y,
-            }),
+            Event::EnterNotify(e) => {
+                WindowEvent::CursorEnter(CursorPos {
+                    x: e.event_x,
+                    y: e.event_y,
+                })
+            }
             Event::LeaveNotify(_) => WindowEvent::CursorLeave,
-            Event::MotionNotify(e) => WindowEvent::CursorMove(CursorPos {
-                x: e.event_x,
-                y: e.event_y,
-            }),
-            Event::ButtonPress(e) => match e.detail {
-                4 => return Some(WindowEvent::Scroll(ScrollDirection::Up)),
-                5 => return Some(WindowEvent::Scroll(ScrollDirection::Down)),
-                _ => mouse_button(e.detail).map(WindowEvent::ButtonPress)?,
-            },
-            Event::ButtonRelease(e) => match e.detail {
-                4 | 5 => return None,
-                _ => mouse_button(e.detail).map(WindowEvent::ButtonRelease)?,
-            },
+            Event::MotionNotify(e) => {
+                WindowEvent::CursorMove(CursorPos {
+                    x: e.event_x,
+                    y: e.event_y,
+                })
+            }
+            Event::ButtonPress(e) => {
+                match e.detail {
+                    4 => return Some(WindowEvent::Scroll(ScrollDirection::Up)),
+                    5 => return Some(WindowEvent::Scroll(ScrollDirection::Down)),
+                    _ => mouse_button(e.detail).map(WindowEvent::ButtonPress)?,
+                }
+            }
+            Event::ButtonRelease(e) => {
+                match e.detail {
+                    4 | 5 => return None,
+                    _ => mouse_button(e.detail).map(WindowEvent::ButtonRelease)?,
+                }
+            }
             _ => return None,
         })
     }

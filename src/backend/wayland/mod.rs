@@ -2,12 +2,13 @@
 
 mod shm;
 
-use std::collections::VecDeque;
-use std::os::fd::{FromRawFd, IntoRawFd};
+use std::{
+    collections::VecDeque,
+    os::fd::{FromRawFd, IntoRawFd},
+};
 
 use kbvm::lookup::LookupTable;
 use wayland_client::{
-    Connection as WaylandConnection, Dispatch, EventQueue, QueueHandle, WEnum,
     protocol::{
         wl_buffer::{self, WlBuffer},
         wl_callback::{self, WlCallback},
@@ -21,6 +22,7 @@ use wayland_client::{
         wl_shm_pool::WlShmPool,
         wl_surface::WlSurface,
     },
+    Connection as WaylandConnection, Dispatch, EventQueue, QueueHandle, WEnum,
 };
 use wayland_protocols::xdg::shell::client::{
     xdg_surface::{self, XdgSurface},
@@ -28,17 +30,15 @@ use wayland_protocols::xdg::shell::client::{
     xdg_wm_base::{self, XdgWmBase},
 };
 
-use crate::error::{Error, WaylandError};
-use crate::render::Canvas;
-
+use self::shm::ShmPool;
 use super::{
     CursorPos, CursorShape, DisplayConnection, KeyEvent, Modifiers, MouseButton, ScrollDirection,
-    Window, WindowEvent,
+    Window, WindowEvent, DEFAULT_SCALE,
 };
-
-use self::shm::ShmPool;
-
-use super::DEFAULT_SCALE;
+use crate::{
+    error::{Error, WaylandError},
+    render::Canvas,
+};
 
 /// Wayland connection wrapper.
 pub(crate) struct Connection {
@@ -50,7 +50,9 @@ impl DisplayConnection for Connection {
 
     fn connect() -> Result<Self, Error> {
         let conn = WaylandConnection::connect_to_env()?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+        })
     }
 
     fn create_window(&self, width: u16, height: u16) -> Result<Self::Window, Error> {
@@ -276,7 +278,8 @@ impl WaylandWindow {
             let (xhot, yhot) = image.hotspot();
 
             self.cursor_surface.attach(Some(&image), 0, 0);
-            self.cursor_surface.damage_buffer(0, 0, width as i32, height as i32);
+            self.cursor_surface
+                .damage_buffer(0, 0, width as i32, height as i32);
             self.cursor_surface.commit();
 
             if let Some(pointer) = &self.state.pointer {
@@ -456,7 +459,10 @@ impl Dispatch<WlOutput, ()> for WaylandState {
         _: &WaylandConnection,
         _: &QueueHandle<Self>,
     ) {
-        if let wl_output::Event::Scale { factor } = event {
+        if let wl_output::Event::Scale {
+            factor,
+        } = event
+        {
             state.output_scale = factor;
         }
     }
@@ -508,7 +514,10 @@ impl Dispatch<WlCallback, ()> for WaylandState {
         _: &WaylandConnection,
         _: &QueueHandle<Self>,
     ) {
-        if let wl_callback::Event::Done { .. } = event {
+        if let wl_callback::Event::Done {
+            ..
+        } = event
+        {
             state.pending_events.push_back(WindowEvent::RedrawRequested);
         }
     }
@@ -523,7 +532,10 @@ impl Dispatch<XdgWmBase, ()> for WaylandState {
         _: &WaylandConnection,
         _: &QueueHandle<Self>,
     ) {
-        if let xdg_wm_base::Event::Ping { serial } = event {
+        if let xdg_wm_base::Event::Ping {
+            serial,
+        } = event
+        {
             wm_base.pong(serial);
         }
     }
@@ -538,7 +550,10 @@ impl Dispatch<XdgSurface, ()> for WaylandState {
         _: &WaylandConnection,
         _: &QueueHandle<Self>,
     ) {
-        if let xdg_surface::Event::Configure { serial } = event {
+        if let xdg_surface::Event::Configure {
+            serial,
+        } = event
+        {
             xdg_surface.ack_configure(serial);
             state.configured = true;
             state.pending_events.push_back(WindowEvent::RedrawRequested);
@@ -603,7 +618,9 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                         y: (surface_y * scale as f64) as i16,
                     }));
             }
-            wl_pointer::Event::Leave { serial, .. } => {
+            wl_pointer::Event::Leave {
+                serial, ..
+            } => {
                 state.last_serial = serial;
                 state.pending_events.push_back(WindowEvent::CursorLeave);
             }
@@ -642,7 +659,11 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                 };
                 state.pending_events.push_back(event);
             }
-            wl_pointer::Event::Axis { axis, value, .. } => {
+            wl_pointer::Event::Axis {
+                axis,
+                value,
+                ..
+            } => {
                 if let WEnum::Value(axis) = axis {
                     if axis == wl_pointer::Axis::VerticalScroll {
                         let direction = if value > 0.0.into() {
@@ -650,7 +671,9 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                         } else {
                             ScrollDirection::Up
                         };
-                        state.pending_events.push_back(WindowEvent::Scroll(direction));
+                        state
+                            .pending_events
+                            .push_back(WindowEvent::Scroll(direction));
                     }
                 }
             }
@@ -669,7 +692,11 @@ impl Dispatch<WlKeyboard, ()> for WaylandState {
         _: &QueueHandle<Self>,
     ) {
         match event {
-            wl_keyboard::Event::Keymap { format, fd, size } => {
+            wl_keyboard::Event::Keymap {
+                format,
+                fd,
+                size,
+            } => {
                 if format == WEnum::Value(wl_keyboard::KeymapFormat::XkbV1) {
                     if let Ok(mmap) = unsafe {
                         let file = std::fs::File::from_raw_fd(fd.into_raw_fd());
@@ -708,8 +735,7 @@ impl Dispatch<WlKeyboard, ()> for WaylandState {
 
                 if let Some(ref lookup_table) = state.lookup_table {
                     let group = kbvm::GroupIndex(state.keyboard_group);
-                    let lookup =
-                        lookup_table.lookup(group, state.modifier_mask, keycode);
+                    let lookup = lookup_table.lookup(group, state.modifier_mask, keycode);
 
                     let keysym = lookup
                         .clone()
@@ -721,8 +747,7 @@ impl Dispatch<WlKeyboard, ()> for WaylandState {
                     match key_state {
                         WEnum::Value(wl_keyboard::KeyState::Pressed) => {
                             // Emit TextInput for printable characters on key press
-                            let ch: Option<char> =
-                                lookup.into_iter().flat_map(|p| p.char()).next();
+                            let ch: Option<char> = lookup.into_iter().flat_map(|p| p.char()).next();
 
                             if let Some(c) = ch {
                                 if !c.is_control() && !modifiers.contains(Modifiers::CTRL) {
@@ -733,12 +758,18 @@ impl Dispatch<WlKeyboard, ()> for WaylandState {
 
                             state
                                 .pending_events
-                                .push_back(WindowEvent::KeyPress(KeyEvent { keysym, modifiers }));
+                                .push_back(WindowEvent::KeyPress(KeyEvent {
+                                    keysym,
+                                    modifiers,
+                                }));
                         }
                         WEnum::Value(wl_keyboard::KeyState::Released) => {
                             state
                                 .pending_events
-                                .push_back(WindowEvent::KeyRelease(KeyEvent { keysym, modifiers }));
+                                .push_back(WindowEvent::KeyRelease(KeyEvent {
+                                    keysym,
+                                    modifiers,
+                                }));
                         }
                         _ => {}
                     }
@@ -755,10 +786,14 @@ impl Dispatch<WlKeyboard, ()> for WaylandState {
                 state.modifier_mask = kbvm::ModifierMask(combined);
                 state.keyboard_group = group;
             }
-            wl_keyboard::Event::Enter { serial, .. } => {
+            wl_keyboard::Event::Enter {
+                serial, ..
+            } => {
                 state.last_serial = serial;
             }
-            wl_keyboard::Event::Leave { serial, .. } => {
+            wl_keyboard::Event::Leave {
+                serial, ..
+            } => {
                 state.last_serial = serial;
             }
             _ => {}

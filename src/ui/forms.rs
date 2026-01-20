@@ -1,12 +1,14 @@
 //! Forms dialog implementation for multiple input fields.
 
-use crate::backend::{CursorShape, Window, WindowEvent, create_window};
-use crate::error::Error;
-use crate::render::{Canvas, Font};
-use crate::ui::Colors;
-use crate::ui::widgets::Widget;
-use crate::ui::widgets::button::Button;
-use crate::ui::widgets::text_input::TextInput;
+use crate::{
+    backend::{create_window, CursorShape, Window, WindowEvent},
+    error::Error,
+    render::{Canvas, Font},
+    ui::{
+        widgets::{button::Button, text_input::TextInput, Widget},
+        Colors,
+    },
+};
 
 const BASE_PADDING: u32 = 20;
 const BASE_FIELD_HEIGHT: u32 = 32;
@@ -143,7 +145,8 @@ impl FormsBuilder {
         };
 
         let logical_buttons_width = temp_ok.width() + temp_cancel.width() + 10;
-        let logical_content_width = (BASE_LABEL_WIDTH + BASE_INPUT_WIDTH + 10).max(logical_buttons_width);
+        let logical_content_width =
+            (BASE_LABEL_WIDTH + BASE_INPUT_WIDTH + 10).max(logical_buttons_width);
         let calc_width = (logical_content_width + BASE_PADDING * 2).max(BASE_MIN_WIDTH);
 
         // Height: padding + text + fields + buttons + padding
@@ -152,7 +155,8 @@ impl FormsBuilder {
             + temp_prompt_height
             + (if temp_prompt_height > 0 { 16 } else { 0 })
             + fields_height
-            + 16 + 32; // Button area
+            + 16
+            + 32; // Button area
 
         drop(temp_font);
         drop(temp_ok);
@@ -200,9 +204,11 @@ impl FormsBuilder {
         let prompt_height = prompt_canvas.as_ref().map(|c| c.height()).unwrap_or(0);
 
         // Create text inputs for each field
-        let mut inputs: Vec<TextInput> = self.fields.iter().map(|field| {
-            TextInput::new(input_width).with_password(field.is_password())
-        }).collect();
+        let mut inputs: Vec<TextInput> = self
+            .fields
+            .iter()
+            .map(|field| TextInput::new(input_width).with_password(field.is_password()))
+            .collect();
 
         // Set first input as focused
         if !inputs.is_empty() {
@@ -286,9 +292,20 @@ impl FormsBuilder {
 
         // Initial draw
         draw(
-            &mut canvas, colors, &font, &prompt_canvas,
-            &self.fields, &inputs, &ok_button, &cancel_button,
-            padding, label_x, &field_positions, field_height, prompt_y, scale,
+            &mut canvas,
+            colors,
+            &font,
+            &prompt_canvas,
+            &self.fields,
+            &inputs,
+            &ok_button,
+            &cancel_button,
+            padding,
+            label_x,
+            &field_positions,
+            field_height,
+            prompt_y,
+            scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -313,8 +330,10 @@ impl FormsBuilder {
                         let iw = input.width();
                         let ih = input.height();
 
-                        if cursor_x >= ix && cursor_x < ix + iw as i32
-                            && cursor_y >= iy && cursor_y < iy + ih as i32
+                        if cursor_x >= ix
+                            && cursor_x < ix + iw as i32
+                            && cursor_y >= iy
+                            && cursor_y < iy + ih as i32
                         {
                             over_input = true;
                             break;
@@ -334,8 +353,10 @@ impl FormsBuilder {
                         let iw = input.width();
                         let ih = input.height();
 
-                        if cursor_x >= ix && cursor_x < ix + iw as i32
-                            && cursor_y >= iy && cursor_y < iy + ih as i32
+                        if cursor_x >= ix
+                            && cursor_x < ix + iw as i32
+                            && cursor_y >= iy
+                            && cursor_y < iy + ih as i32
                         {
                             if i != focused_index {
                                 inputs[focused_index].set_focus(false);
@@ -374,7 +395,8 @@ impl FormsBuilder {
                         }
                         KEY_RETURN => {
                             // Submit form
-                            let values: Vec<String> = inputs.iter()
+                            let values: Vec<String> = inputs
+                                .iter()
                                 .map(|input| input.text().to_string())
                                 .collect();
                             return Ok(FormsResult::Values(values));
@@ -395,7 +417,8 @@ impl FormsBuilder {
 
             // Check for submission via input
             if inputs[focused_index].was_submitted() {
-                let values: Vec<String> = inputs.iter()
+                let values: Vec<String> = inputs
+                    .iter()
                     .map(|input| input.text().to_string())
                     .collect();
                 return Ok(FormsResult::Values(values));
@@ -406,7 +429,8 @@ impl FormsBuilder {
             needs_redraw |= cancel_button.process_event(&event);
 
             if ok_button.was_clicked() {
-                let values: Vec<String> = inputs.iter()
+                let values: Vec<String> = inputs
+                    .iter()
                     .map(|input| input.text().to_string())
                     .collect();
                 return Ok(FormsResult::Values(values));
@@ -424,7 +448,8 @@ impl FormsBuilder {
                             needs_redraw = true;
                         }
                         if inputs[focused_index].was_submitted() {
-                            let values: Vec<String> = inputs.iter()
+                            let values: Vec<String> = inputs
+                                .iter()
                                 .map(|input| input.text().to_string())
                                 .collect();
                             return Ok(FormsResult::Values(values));
@@ -437,9 +462,20 @@ impl FormsBuilder {
 
             if needs_redraw {
                 draw(
-                    &mut canvas, colors, &font, &prompt_canvas,
-                    &self.fields, &inputs, &ok_button, &cancel_button,
-                    padding, label_x, &field_positions, field_height, prompt_y, scale,
+                    &mut canvas,
+                    colors,
+                    &font,
+                    &prompt_canvas,
+                    &self.fields,
+                    &inputs,
+                    &ok_button,
+                    &cancel_button,
+                    padding,
+                    label_x,
+                    &field_positions,
+                    field_height,
+                    prompt_y,
+                    scale,
                 );
                 window.set_contents(&canvas)?;
             }

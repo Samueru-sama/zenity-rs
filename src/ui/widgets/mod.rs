@@ -4,9 +4,7 @@ pub(crate) mod button;
 pub(crate) mod progress_bar;
 pub(crate) mod text_input;
 
-use crate::backend::WindowEvent;
-use crate::render::Canvas;
-use crate::ui::Colors;
+use crate::{backend::WindowEvent, render::Canvas, ui::Colors};
 
 /// Trait for UI widgets.
 #[allow(dead_code)]

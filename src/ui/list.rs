@@ -1,11 +1,14 @@
 //! List selection dialog implementation.
 
-use crate::backend::{Window, WindowEvent, MouseButton, create_window};
-use crate::error::Error;
-use crate::render::{Canvas, Font, rgb};
-use crate::ui::Colors;
-use crate::ui::widgets::Widget;
-use crate::ui::widgets::button::Button;
+use crate::{
+    backend::{create_window, MouseButton, Window, WindowEvent},
+    error::Error,
+    render::{rgb, Canvas, Font},
+    ui::{
+        widgets::{button::Button, Widget},
+        Colors,
+    },
+};
 
 const BASE_PADDING: u32 = 16;
 const BASE_ROW_HEIGHT: u32 = 28;
@@ -170,7 +173,8 @@ impl ListBuilder {
         // In these modes, zenity's column 1 is TRUE/FALSE which we strip,
         // so user's column N becomes internal index N-2 (N-1 for 0-based, then -1 for stripped column)
         let adjusted_hidden: Vec<usize> = if self.mode != ListMode::Single {
-            self.hidden_columns.iter()
+            self.hidden_columns
+                .iter()
                 .filter_map(|&col| col.checked_sub(1)) // Subtract 1 more for stripped TRUE/FALSE column
                 .collect()
         } else {
@@ -183,14 +187,17 @@ impl ListBuilder {
             .collect();
 
         // Get visible columns only
-        let columns: Vec<&str> = visible_col_indices.iter()
+        let columns: Vec<&str> = visible_col_indices
+            .iter()
             .map(|&i| all_columns[i])
             .collect();
 
         // Create display rows with only visible columns (original rows kept for result)
-        let display_rows: Vec<Vec<String>> = rows.iter()
+        let display_rows: Vec<Vec<String>> = rows
+            .iter()
             .map(|row| {
-                visible_col_indices.iter()
+                visible_col_indices
+                    .iter()
                     .filter_map(|&i| row.get(i).cloned())
                     .collect()
             })
@@ -219,15 +226,31 @@ impl ListBuilder {
         drop(temp_font);
 
         // Calculate logical total width
-        let logical_checkbox_col = if self.mode != ListMode::Single { BASE_CHECKBOX_SIZE + 16 } else { 0 };
-        let logical_content_width: u32 = logical_col_widths.iter().sum::<u32>() + logical_checkbox_col;
-        let calc_width = (logical_content_width + BASE_PADDING * 2).clamp(BASE_MIN_WIDTH, BASE_MAX_WIDTH);
+        let logical_checkbox_col = if self.mode != ListMode::Single {
+            BASE_CHECKBOX_SIZE + 16
+        } else {
+            0
+        };
+        let logical_content_width: u32 =
+            logical_col_widths.iter().sum::<u32>() + logical_checkbox_col;
+        let calc_width =
+            (logical_content_width + BASE_PADDING * 2).clamp(BASE_MIN_WIDTH, BASE_MAX_WIDTH);
 
         // Calculate logical height
         let logical_text_height = if self.text.is_empty() { 0 } else { 24 };
-        let logical_header_height = if columns.is_empty() { 0 } else { BASE_ROW_HEIGHT };
-        let logical_list_height = (num_rows as u32 * BASE_ROW_HEIGHT).clamp(BASE_ROW_HEIGHT * 3, BASE_MAX_HEIGHT - 100);
-        let calc_height = (BASE_PADDING * 2 + logical_text_height + logical_header_height + logical_list_height + 50).clamp(BASE_MIN_HEIGHT, BASE_MAX_HEIGHT);
+        let logical_header_height = if columns.is_empty() {
+            0
+        } else {
+            BASE_ROW_HEIGHT
+        };
+        let logical_list_height =
+            (num_rows as u32 * BASE_ROW_HEIGHT).clamp(BASE_ROW_HEIGHT * 3, BASE_MAX_HEIGHT - 100);
+        let calc_height = (BASE_PADDING * 2
+            + logical_text_height
+            + logical_header_height
+            + logical_list_height
+            + 50)
+            .clamp(BASE_MIN_HEIGHT, BASE_MAX_HEIGHT);
 
         // Use custom dimensions if provided, otherwise use calculated defaults
         let logical_width = self.width.unwrap_or(calc_width);
@@ -235,7 +258,11 @@ impl ListBuilder {
 
         // Create window with LOGICAL dimensions
         let mut window = create_window(logical_width as u16, logical_height as u16)?;
-        window.set_title(if self.title.is_empty() { "Select" } else { &self.title })?;
+        window.set_title(if self.title.is_empty() {
+            "Select"
+        } else {
+            &self.title
+        })?;
 
         // Get the actual scale factor from the window (compositor scale)
         let scale = window.scale_factor();
@@ -268,8 +295,16 @@ impl ListBuilder {
         }
 
         // Calculate physical list dimensions
-        let checkbox_col = if self.mode != ListMode::Single { checkbox_size + (16.0 * scale) as u32 } else { 0 };
-        let text_height = if self.text.is_empty() { 0 } else { (24.0 * scale) as u32 };
+        let checkbox_col = if self.mode != ListMode::Single {
+            checkbox_size + (16.0 * scale) as u32
+        } else {
+            0
+        };
+        let text_height = if self.text.is_empty() {
+            0
+        } else {
+            (24.0 * scale) as u32
+        };
         let list_height = (logical_list_height as f32 * scale) as u32;
 
         // Create buttons at physical scale
@@ -339,9 +374,12 @@ impl ListBuilder {
 
             // List background
             canvas.fill_rounded_rect(
-                list_x as f32, list_y as f32,
-                list_w as f32, list_h as f32,
-                6.0 * scale, colors.input_bg,
+                list_x as f32,
+                list_y as f32,
+                list_w as f32,
+                list_h as f32,
+                6.0 * scale,
+                colors.input_bg,
             );
 
             // Draw header if columns exist
@@ -349,30 +387,44 @@ impl ListBuilder {
             if !columns.is_empty() {
                 let header_bg = darken(colors.input_bg, 0.05);
                 canvas.fill_rect(
-                    list_x as f32, list_y as f32,
-                    list_w as f32, row_height as f32,
+                    list_x as f32,
+                    list_y as f32,
+                    list_w as f32,
+                    row_height as f32,
                     header_bg,
                 );
 
                 let mut cx = list_x + checkbox_col as i32;
                 for (i, col) in columns.iter().enumerate() {
                     let tc = font.render(col).with_color(rgb(140, 140, 140)).finish();
-                    canvas.draw_canvas(&tc, cx + (8.0 * scale) as i32, list_y + (6.0 * scale) as i32);
+                    canvas.draw_canvas(
+                        &tc,
+                        cx + (8.0 * scale) as i32,
+                        list_y + (6.0 * scale) as i32,
+                    );
                     cx += col_widths.get(i).copied().unwrap_or((100.0 * scale) as u32) as i32;
                 }
 
                 // Separator
                 canvas.fill_rect(
-                    list_x as f32, (list_y + row_height as i32) as f32,
-                    list_w as f32, 1.0,
+                    list_x as f32,
+                    (list_y + row_height as i32) as f32,
+                    list_w as f32,
+                    1.0,
                     colors.input_border,
                 );
                 data_y += row_height as i32 + 1;
             }
 
             // Draw rows
-            let data_visible = if columns.is_empty() { visible_rows } else { visible_rows.saturating_sub(1) };
-            for (vi, ri) in (scroll_offset..rows.len().min(scroll_offset + data_visible)).enumerate() {
+            let data_visible = if columns.is_empty() {
+                visible_rows
+            } else {
+                visible_rows.saturating_sub(1)
+            };
+            for (vi, ri) in
+                (scroll_offset..rows.len().min(scroll_offset + data_visible)).enumerate()
+            {
                 let row = &rows[ri];
                 let ry = data_y + (vi as u32 * row_height) as i32;
 
@@ -394,8 +446,10 @@ impl ListBuilder {
                 };
 
                 canvas.fill_rect(
-                    (list_x + 1) as f32, ry as f32,
-                    (list_w - 2) as f32, row_height as f32,
+                    (list_x + 1) as f32,
+                    ry as f32,
+                    (list_w - 2) as f32,
+                    row_height as f32,
                     bg,
                 );
 
@@ -406,9 +460,25 @@ impl ListBuilder {
                     let checked = selected.get(ri).copied().unwrap_or(false);
 
                     if mode == ListMode::Checklist {
-                        draw_checkbox(canvas, check_x, check_y, checked, colors, checkbox_size, scale);
+                        draw_checkbox(
+                            canvas,
+                            check_x,
+                            check_y,
+                            checked,
+                            colors,
+                            checkbox_size,
+                            scale,
+                        );
                     } else {
-                        draw_radio(canvas, check_x, check_y, checked, colors, checkbox_size, scale);
+                        draw_radio(
+                            canvas,
+                            check_x,
+                            check_y,
+                            checked,
+                            colors,
+                            checkbox_size,
+                            scale,
+                        );
                     }
                 }
 
@@ -416,9 +486,17 @@ impl ListBuilder {
                 let mut cx = list_x + checkbox_col as i32;
                 for (ci, cell) in row.iter().enumerate() {
                     if ci < col_widths.len() {
-                        let text_color = if is_selected { rgb(255, 255, 255) } else { colors.text };
+                        let text_color = if is_selected {
+                            rgb(255, 255, 255)
+                        } else {
+                            colors.text
+                        };
                         let tc = font.render(cell).with_color(text_color).finish();
-                        canvas.draw_canvas(&tc, cx + (8.0 * scale) as i32, ry + (6.0 * scale) as i32);
+                        canvas.draw_canvas(
+                            &tc,
+                            cx + (8.0 * scale) as i32,
+                            ry + (6.0 * scale) as i32,
+                        );
                         cx += col_widths[ci] as i32;
                     }
                 }
@@ -427,20 +505,43 @@ impl ListBuilder {
             // Scrollbar
             if rows.len() > data_visible {
                 let sb_x = list_x + list_w as i32 - (8.0 * scale) as i32;
-                let sb_h = list_h as f32 - if columns.is_empty() { 0.0 } else { row_height as f32 + 1.0 };
+                let sb_h = list_h as f32
+                    - if columns.is_empty() {
+                        0.0
+                    } else {
+                        row_height as f32 + 1.0
+                    };
                 let sb_y = data_y as f32;
                 let thumb_h = (data_visible as f32 / rows.len() as f32 * sb_h).max(20.0 * scale);
                 let thumb_y = scroll_offset as f32 / rows.len() as f32 * sb_h;
 
-                canvas.fill_rounded_rect(sb_x as f32, sb_y, 6.0 * scale, sb_h, 3.0 * scale, darken(colors.input_bg, 0.05));
-                canvas.fill_rounded_rect(sb_x as f32, sb_y + thumb_y, 6.0 * scale, thumb_h, 3.0 * scale, colors.input_border);
+                canvas.fill_rounded_rect(
+                    sb_x as f32,
+                    sb_y,
+                    6.0 * scale,
+                    sb_h,
+                    3.0 * scale,
+                    darken(colors.input_bg, 0.05),
+                );
+                canvas.fill_rounded_rect(
+                    sb_x as f32,
+                    sb_y + thumb_y,
+                    6.0 * scale,
+                    thumb_h,
+                    3.0 * scale,
+                    colors.input_border,
+                );
             }
 
             // Border
             canvas.stroke_rounded_rect(
-                list_x as f32, list_y as f32,
-                list_w as f32, list_h as f32,
-                6.0 * scale, colors.input_border, 1.0,
+                list_x as f32,
+                list_y as f32,
+                list_w as f32,
+                list_h as f32,
+                6.0 * scale,
+                colors.input_border,
+                1.0,
             );
 
             // Buttons
@@ -450,18 +551,46 @@ impl ListBuilder {
 
         // Initial draw
         draw(
-            &mut canvas, colors, &font, &self.text, &columns, &display_rows, &col_widths,
-            &selected, single_selected, scroll_offset, hovered_row, self.mode,
-            &ok_button, &cancel_button,
-            padding, row_height, checkbox_size, checkbox_col,
-            list_x, list_y, list_w, list_h, visible_rows, text_y, scale,
+            &mut canvas,
+            colors,
+            &font,
+            &self.text,
+            &columns,
+            &display_rows,
+            &col_widths,
+            &selected,
+            single_selected,
+            scroll_offset,
+            hovered_row,
+            self.mode,
+            &ok_button,
+            &cancel_button,
+            padding,
+            row_height,
+            checkbox_size,
+            checkbox_col,
+            list_x,
+            list_y,
+            list_w,
+            list_h,
+            visible_rows,
+            text_y,
+            scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
 
-        let header_height_px = if columns.is_empty() { 0 } else { row_height + 1 };
+        let header_height_px = if columns.is_empty() {
+            0
+        } else {
+            row_height + 1
+        };
         let data_y = list_y + header_height_px as i32;
-        let data_visible = if columns.is_empty() { visible_rows } else { visible_rows.saturating_sub(1) };
+        let data_visible = if columns.is_empty() {
+            visible_rows
+        } else {
+            visible_rows.saturating_sub(1)
+        };
 
         loop {
             let event = window.wait_for_event()?;
@@ -477,8 +606,10 @@ impl ListBuilder {
                     let old_hovered = hovered_row;
                     hovered_row = None;
 
-                    if mx >= list_x && mx < list_x + list_w as i32
-                        && my >= data_y && my < list_y + list_h as i32
+                    if mx >= list_x
+                        && mx < list_x + list_w as i32
+                        && my >= data_y
+                        && my < list_y + list_h as i32
                     {
                         let rel_y = (my - data_y) as usize;
                         let ri = scroll_offset + rel_y / row_height as usize;
@@ -525,7 +656,8 @@ impl ListBuilder {
                         }
                         crate::backend::ScrollDirection::Down => {
                             if scroll_offset + data_visible < rows.len() {
-                                scroll_offset = (scroll_offset + 2).min(rows.len().saturating_sub(data_visible));
+                                scroll_offset = (scroll_offset + 2)
+                                    .min(rows.len().saturating_sub(data_visible));
                                 needs_redraw = true;
                             }
                         }
@@ -615,11 +747,31 @@ impl ListBuilder {
 
             if needs_redraw {
                 draw(
-                    &mut canvas, colors, &font, &self.text, &columns, &display_rows, &col_widths,
-                    &selected, single_selected, scroll_offset, hovered_row, self.mode,
-                    &ok_button, &cancel_button,
-                    padding, row_height, checkbox_size, checkbox_col,
-                    list_x, list_y, list_w, list_h, visible_rows, text_y, scale,
+                    &mut canvas,
+                    colors,
+                    &font,
+                    &self.text,
+                    &columns,
+                    &display_rows,
+                    &col_widths,
+                    &selected,
+                    single_selected,
+                    scroll_offset,
+                    hovered_row,
+                    self.mode,
+                    &ok_button,
+                    &cancel_button,
+                    padding,
+                    row_height,
+                    checkbox_size,
+                    checkbox_col,
+                    list_x,
+                    list_y,
+                    list_w,
+                    list_h,
+                    visible_rows,
+                    text_y,
+                    scale,
                 );
                 window.set_contents(&canvas)?;
             }
@@ -633,7 +785,12 @@ impl Default for ListBuilder {
     }
 }
 
-fn get_result(rows: &[Vec<String>], selected: &[bool], single_selected: Option<usize>, mode: ListMode) -> ListResult {
+fn get_result(
+    rows: &[Vec<String>],
+    selected: &[bool],
+    single_selected: Option<usize>,
+    mode: ListMode,
+) -> ListResult {
     let mut result = Vec::new();
 
     match mode {
@@ -674,54 +831,90 @@ fn darken(color: crate::render::Rgba, amount: f32) -> crate::render::Rgba {
     )
 }
 
-fn draw_checkbox(canvas: &mut Canvas, x: i32, y: i32, checked: bool, colors: &Colors, checkbox_size: u32, scale: f32) {
+fn draw_checkbox(
+    canvas: &mut Canvas,
+    x: i32,
+    y: i32,
+    checked: bool,
+    colors: &Colors,
+    checkbox_size: u32,
+    scale: f32,
+) {
     // Box
     canvas.fill_rounded_rect(
-        x as f32, y as f32,
-        checkbox_size as f32, checkbox_size as f32,
-        3.0 * scale, colors.input_bg,
+        x as f32,
+        y as f32,
+        checkbox_size as f32,
+        checkbox_size as f32,
+        3.0 * scale,
+        colors.input_bg,
     );
     canvas.stroke_rounded_rect(
-        x as f32, y as f32,
-        checkbox_size as f32, checkbox_size as f32,
-        3.0 * scale, colors.input_border, 1.0,
+        x as f32,
+        y as f32,
+        checkbox_size as f32,
+        checkbox_size as f32,
+        3.0 * scale,
+        colors.input_border,
+        1.0,
     );
 
     // Check mark
     if checked {
         let inset = (3.0 * scale) as i32;
         canvas.fill_rounded_rect(
-            (x + inset) as f32, (y + inset) as f32,
-            (checkbox_size as i32 - inset * 2) as f32, (checkbox_size as i32 - inset * 2) as f32,
-            2.0 * scale, colors.input_border_focused,
+            (x + inset) as f32,
+            (y + inset) as f32,
+            (checkbox_size as i32 - inset * 2) as f32,
+            (checkbox_size as i32 - inset * 2) as f32,
+            2.0 * scale,
+            colors.input_border_focused,
         );
     }
 }
 
-fn draw_radio(canvas: &mut Canvas, x: i32, y: i32, checked: bool, colors: &Colors, checkbox_size: u32, scale: f32) {
+fn draw_radio(
+    canvas: &mut Canvas,
+    x: i32,
+    y: i32,
+    checked: bool,
+    colors: &Colors,
+    checkbox_size: u32,
+    scale: f32,
+) {
     let cx = x as f32 + checkbox_size as f32 / 2.0;
     let cy = y as f32 + checkbox_size as f32 / 2.0;
     let r = checkbox_size as f32 / 2.0;
 
     // Outer circle (using rounded rect as approximation)
     canvas.fill_rounded_rect(
-        x as f32, y as f32,
-        checkbox_size as f32, checkbox_size as f32,
-        r, colors.input_bg,
+        x as f32,
+        y as f32,
+        checkbox_size as f32,
+        checkbox_size as f32,
+        r,
+        colors.input_bg,
     );
     canvas.stroke_rounded_rect(
-        x as f32, y as f32,
-        checkbox_size as f32, checkbox_size as f32,
-        r, colors.input_border, 1.0,
+        x as f32,
+        y as f32,
+        checkbox_size as f32,
+        checkbox_size as f32,
+        r,
+        colors.input_border,
+        1.0,
     );
 
     // Inner dot
     if checked {
         let inner_r = r * 0.5;
         canvas.fill_rounded_rect(
-            cx - inner_r, cy - inner_r,
-            inner_r * 2.0, inner_r * 2.0,
-            inner_r, colors.input_border_focused,
+            cx - inner_r,
+            cy - inner_r,
+            inner_r * 2.0,
+            inner_r * 2.0,
+            inner_r,
+            colors.input_border_focused,
         );
     }
 }

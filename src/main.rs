@@ -3,8 +3,11 @@
 use std::process::ExitCode;
 
 use lexopt::prelude::*;
-
-use zenity_rs::{ButtonPreset, CalendarResult, EntryResult, FileSelectResult, FormsResult, Icon, ListResult, ProgressResult, ScaleResult, TextInfoResult, calendar, entry, file_select, forms, list, message, password, progress, scale, text_info};
+use zenity_rs::{
+    calendar, entry, file_select, forms, list, message, password, progress, scale, text_info,
+    ButtonPreset, CalendarResult, EntryResult, FileSelectResult, FormsResult, Icon, ListResult,
+    ProgressResult, ScaleResult, TextInfoResult,
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -174,7 +177,11 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     match dialog_type {
         DialogType::Info => {
             let mut builder = message()
-                .title(if title.is_empty() { "Information" } else { &title })
+                .title(if title.is_empty() {
+                    "Information"
+                } else {
+                    &title
+                })
                 .text(&text)
                 .icon(Icon::Info)
                 .buttons(ButtonPreset::Ok);
@@ -453,7 +460,11 @@ fn handle_list_result(result: ListResult) -> Result<i32, Box<dyn std::error::Err
 
 fn handle_calendar_result(result: CalendarResult) -> Result<i32, Box<dyn std::error::Error>> {
     match result {
-        CalendarResult::Selected { year, month, day } => {
+        CalendarResult::Selected {
+            year,
+            month,
+            day,
+        } => {
             println!("{:04}-{:02}-{:02}", year, month, day);
             Ok(0)
         }
@@ -488,9 +499,14 @@ fn handle_entry_result(result: EntryResult) -> Result<i32, Box<dyn std::error::E
     }
 }
 
-fn handle_text_info_result(result: TextInfoResult, has_checkbox: bool) -> Result<i32, Box<dyn std::error::Error>> {
+fn handle_text_info_result(
+    result: TextInfoResult,
+    has_checkbox: bool,
+) -> Result<i32, Box<dyn std::error::Error>> {
     match result {
-        TextInfoResult::Ok { checkbox_checked } => {
+        TextInfoResult::Ok {
+            checkbox_checked,
+        } => {
             // If checkbox was specified but not checked, return 1
             // Otherwise return 0
             if has_checkbox && !checkbox_checked {
@@ -515,7 +531,10 @@ fn handle_scale_result(result: ScaleResult) -> Result<i32, Box<dyn std::error::E
     }
 }
 
-fn handle_forms_result(result: FormsResult, separator: &str) -> Result<i32, Box<dyn std::error::Error>> {
+fn handle_forms_result(
+    result: FormsResult,
+    separator: &str,
+) -> Result<i32, Box<dyn std::error::Error>> {
     match result {
         FormsResult::Values(values) => {
             println!("{}", values.join(separator));

@@ -98,7 +98,9 @@ impl From<x11rb::errors::ReplyError> for Error {
 impl From<x11rb::errors::ReplyOrIdError> for Error {
     fn from(e: x11rb::errors::ReplyOrIdError) -> Self {
         match e {
-            x11rb::errors::ReplyOrIdError::ConnectionError(e) => Error::X11(X11Error::Connection(e)),
+            x11rb::errors::ReplyOrIdError::ConnectionError(e) => {
+                Error::X11(X11Error::Connection(e))
+            }
             x11rb::errors::ReplyOrIdError::X11Error(e) => Error::X11(X11Error::Reply(e.into())),
             x11rb::errors::ReplyOrIdError::IdsExhausted => Error::X11(X11Error::NoVisual),
         }

@@ -1,12 +1,14 @@
 //! Entry dialog implementation for text input.
 
-use crate::backend::{CursorShape, Window, WindowEvent, create_window};
-use crate::error::Error;
-use crate::render::{Canvas, Font};
-use crate::ui::Colors;
-use crate::ui::widgets::Widget;
-use crate::ui::widgets::button::Button;
-use crate::ui::widgets::text_input::TextInput;
+use crate::{
+    backend::{create_window, CursorShape, Window, WindowEvent},
+    error::Error,
+    render::{Canvas, Font},
+    ui::{
+        widgets::{button::Button, text_input::TextInput, Widget},
+        Colors,
+    },
+};
 
 const BASE_PADDING: u32 = 20;
 const BASE_BUTTON_SPACING: u32 = 10;
@@ -168,7 +170,11 @@ impl EntryBuilder {
         let width = content_width + padding * 2;
         let height = padding * 3
             + prompt_height
-            + (if prompt_height > 0 { (10.0 * scale) as u32 } else { 0 })
+            + (if prompt_height > 0 {
+                (10.0 * scale) as u32
+            } else {
+                0
+            })
             + input.height()
             + (10.0 * scale) as u32
             + (32.0 * scale) as u32;
@@ -270,8 +276,10 @@ impl EntryBuilder {
                     let iw = input.width();
                     let ih = input.height();
 
-                    let over_input = cursor_x >= ix && cursor_x < ix + iw as i32
-                        && cursor_y >= iy && cursor_y < iy + ih as i32;
+                    let over_input = cursor_x >= ix
+                        && cursor_x < ix + iw as i32
+                        && cursor_y >= iy
+                        && cursor_y < iy + ih as i32;
 
                     let _ = window.set_cursor(if over_input {
                         CursorShape::Text

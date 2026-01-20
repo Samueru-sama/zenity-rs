@@ -2,12 +2,15 @@
 
 use std::time::{Duration, Instant};
 
-use crate::backend::{create_window, MouseButton, Window, WindowEvent};
-use crate::error::Error;
-use crate::render::{rgb, Canvas, Font};
-use crate::ui::widgets::button::Button;
-use crate::ui::widgets::Widget;
-use crate::ui::{ButtonPreset, Colors, DialogResult, Icon};
+use crate::{
+    backend::{create_window, MouseButton, Window, WindowEvent},
+    error::Error,
+    render::{rgb, Canvas, Font},
+    ui::{
+        widgets::{button::Button, Widget},
+        ButtonPreset, Colors, DialogResult, Icon,
+    },
+};
 
 const BASE_ICON_SIZE: u32 = 48;
 const BASE_PADDING: u32 = 20;

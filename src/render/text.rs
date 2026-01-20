@@ -1,7 +1,7 @@
-use ab_glyph::{Font as _, Glyph, OutlinedGlyph, PxScaleFont, ScaleFont, point};
+use ab_glyph::{point, Font as _, Glyph, OutlinedGlyph, PxScaleFont, ScaleFont};
 use tiny_skia::Pixmap;
 
-use super::{Canvas, Rgba, rgb};
+use super::{rgb, Canvas, Rgba};
 
 const FALLBACK_FONT: &[u8] = include_bytes!("../../assets/Cantarell-Regular.ttf");
 
@@ -40,11 +40,17 @@ pub struct TextRenderer<'a> {
 
 impl<'a> TextRenderer<'a> {
     pub fn with_color(self, color: Rgba) -> Self {
-        Self { color, ..self }
+        Self {
+            color,
+            ..self
+        }
     }
 
     pub fn with_max_width(self, max_width: f32) -> Self {
-        Self { max_width, ..self }
+        Self {
+            max_width,
+            ..self
+        }
     }
 
     /// Renders the text and returns a Canvas containing it.
@@ -101,7 +107,8 @@ impl<'a> TextRenderer<'a> {
                             // Blend with existing pixel (SrcOver)
                             let existing = *pix;
                             if existing.alpha() == 0 {
-                                *pix = tiny_skia::PremultipliedColorU8::from_rgba(r, g, b, a).unwrap();
+                                *pix =
+                                    tiny_skia::PremultipliedColorU8::from_rgba(r, g, b, a).unwrap();
                             } else {
                                 // Alpha composite
                                 let ea = existing.alpha() as u32;
@@ -115,7 +122,10 @@ impl<'a> TextRenderer<'a> {
                                 let out_g = (g as u32 + eg * inv_a / 255).min(255) as u8;
                                 let out_b = (b as u32 + eb * inv_a / 255).min(255) as u8;
 
-                                *pix = tiny_skia::PremultipliedColorU8::from_rgba(out_r, out_g, out_b, out_a).unwrap();
+                                *pix = tiny_skia::PremultipliedColorU8::from_rgba(
+                                    out_r, out_g, out_b, out_a,
+                                )
+                                .unwrap();
                             }
                         }
                     }
@@ -123,7 +133,9 @@ impl<'a> TextRenderer<'a> {
             });
         }
 
-        Canvas { pixmap }
+        Canvas {
+            pixmap,
+        }
     }
 
     /// Computes the size of the rendered text without actually rendering it.

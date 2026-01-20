@@ -1,7 +1,6 @@
 mod text;
 
 pub(crate) use text::Font;
-
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapRef, Rect, Transform};
 
 /// A canvas backed by a tiny-skia Pixmap.
@@ -39,7 +38,8 @@ impl Canvas {
         let mut paint = Paint::default();
         paint.set_color(color.into());
         paint.anti_alias = true;
-        self.pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+        self.pixmap
+            .fill_rect(rect, &paint, Transform::identity(), None);
     }
 
     /// Fills a rounded rectangle with a color.
@@ -48,11 +48,26 @@ impl Canvas {
         let mut paint = Paint::default();
         paint.set_color(color.into());
         paint.anti_alias = true;
-        self.pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+        self.pixmap.fill_path(
+            &path,
+            &paint,
+            tiny_skia::FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
     }
 
     /// Strokes a rounded rectangle outline.
-    pub fn stroke_rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: Rgba, width: f32) {
+    pub fn stroke_rounded_rect(
+        &mut self,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        radius: f32,
+        color: Rgba,
+        width: f32,
+    ) {
         let path = rounded_rect_path(x, y, w, h, radius);
         let mut paint = Paint::default();
         paint.set_color(color.into());
@@ -61,7 +76,8 @@ impl Canvas {
             width,
             ..Default::default()
         };
-        self.pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        self.pixmap
+            .stroke_path(&path, &paint, &stroke, Transform::identity(), None);
     }
 
     /// Draws another canvas onto this one at the given position.
@@ -102,7 +118,6 @@ impl Canvas {
 
         argb
     }
-
 }
 
 /// Creates a rounded rectangle path.
@@ -146,15 +161,28 @@ pub struct Rgba {
 
 impl Rgba {
     pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self { r, g, b, a }
+        Self {
+            r,
+            g,
+            b,
+            a,
+        }
     }
 
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b, a: 255 }
+        Self {
+            r,
+            g,
+            b,
+            a: 255,
+        }
     }
 
     pub const fn with_alpha(self, a: u8) -> Self {
-        Self { a, ..self }
+        Self {
+            a,
+            ..self
+        }
     }
 }
 
@@ -168,4 +196,3 @@ impl From<Rgba> for Color {
 pub const fn rgb(r: u8, g: u8, b: u8) -> Rgba {
     Rgba::rgb(r, g, b)
 }
-

@@ -1,10 +1,11 @@
 //! Button widget.
 
-use crate::backend::{MouseButton, WindowEvent};
-use crate::render::{Canvas, Font};
-use crate::ui::Colors;
-
-use super::{Widget, point_in_rect};
+use super::{point_in_rect, Widget};
+use crate::{
+    backend::{MouseButton, WindowEvent},
+    render::{Canvas, Font},
+    ui::Colors,
+};
 
 /// A clickable button widget.
 pub(crate) struct Button {
@@ -87,7 +88,10 @@ impl Button {
         );
 
         // Draw button label
-        let text_canvas = font.render(&self.label).with_color(colors.button_text).finish();
+        let text_canvas = font
+            .render(&self.label)
+            .with_color(colors.button_text)
+            .finish();
         let text_x = self.x + (self.width as i32 - text_canvas.width() as i32) / 2;
         let text_y = self.y + (self.height as i32 - text_canvas.height() as i32) / 2;
         canvas.draw_canvas(&text_canvas, text_x, text_y);

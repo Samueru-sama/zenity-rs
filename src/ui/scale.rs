@@ -1,11 +1,14 @@
 //! Scale dialog implementation for selecting a numeric value with a slider.
 
-use crate::backend::{MouseButton, Window, WindowEvent, create_window};
-use crate::error::Error;
-use crate::render::{Canvas, Font};
-use crate::ui::Colors;
-use crate::ui::widgets::Widget;
-use crate::ui::widgets::button::Button;
+use crate::{
+    backend::{create_window, MouseButton, Window, WindowEvent},
+    error::Error,
+    render::{Canvas, Font},
+    ui::{
+        widgets::{button::Button, Widget},
+        Colors,
+    },
+};
 
 const BASE_PADDING: u32 = 20;
 const BASE_SLIDER_HEIGHT: u32 = 8;
@@ -146,7 +149,7 @@ impl ScaleBuilder {
             + (if temp_prompt_height > 0 { 16 } else { 0 })
             + BASE_THUMB_SIZE + 16  // Slider area with some margin
             + value_display_height
-            + 32 + 16;  // Buttons
+            + 32 + 16; // Buttons
 
         drop(temp_font);
         drop(temp_ok);
@@ -206,7 +209,9 @@ impl ScaleBuilder {
         y += thumb_size as i32 + (16.0 * scale) as i32;
 
         // Value display position
-        let value_y = if self.hide_value { y } else {
+        let value_y = if self.hide_value {
+            y
+        } else {
             let vy = y;
             y += (24.0 * scale) as i32;
             vy
@@ -293,9 +298,12 @@ impl ScaleBuilder {
 
             // Draw slider track background
             canvas.fill_rounded_rect(
-                slider_x as f32, slider_y as f32,
-                slider_width as f32, slider_height as f32,
-                slider_height as f32 / 2.0, colors.progress_bg,
+                slider_x as f32,
+                slider_y as f32,
+                slider_width as f32,
+                slider_height as f32,
+                slider_height as f32 / 2.0,
+                colors.progress_bg,
             );
 
             // Draw filled portion of track
@@ -303,17 +311,24 @@ impl ScaleBuilder {
             let fill_width = (thumb_x - slider_x + thumb_size as i32 / 2) as f32;
             if fill_width > 0.0 {
                 canvas.fill_rounded_rect(
-                    slider_x as f32, slider_y as f32,
-                    fill_width.min(slider_width as f32), slider_height as f32,
-                    slider_height as f32 / 2.0, colors.progress_fill,
+                    slider_x as f32,
+                    slider_y as f32,
+                    fill_width.min(slider_width as f32),
+                    slider_height as f32,
+                    slider_height as f32 / 2.0,
+                    colors.progress_fill,
                 );
             }
 
             // Draw track border
             canvas.stroke_rounded_rect(
-                slider_x as f32, slider_y as f32,
-                slider_width as f32, slider_height as f32,
-                slider_height as f32 / 2.0, colors.progress_border, 1.0,
+                slider_x as f32,
+                slider_y as f32,
+                slider_width as f32,
+                slider_height as f32,
+                slider_height as f32 / 2.0,
+                colors.progress_border,
+                1.0,
             );
 
             // Draw thumb
@@ -325,14 +340,21 @@ impl ScaleBuilder {
                 colors.button
             };
             canvas.fill_rounded_rect(
-                thumb_x as f32, thumb_y as f32,
-                thumb_size as f32, thumb_size as f32,
-                thumb_size as f32 / 2.0, thumb_color,
+                thumb_x as f32,
+                thumb_y as f32,
+                thumb_size as f32,
+                thumb_size as f32,
+                thumb_size as f32 / 2.0,
+                thumb_color,
             );
             canvas.stroke_rounded_rect(
-                thumb_x as f32, thumb_y as f32,
-                thumb_size as f32, thumb_size as f32,
-                thumb_size as f32 / 2.0, colors.button_outline, 1.0,
+                thumb_x as f32,
+                thumb_y as f32,
+                thumb_size as f32,
+                thumb_size as f32,
+                thumb_size as f32 / 2.0,
+                colors.button_outline,
+                1.0,
             );
 
             // Draw value display
@@ -350,10 +372,27 @@ impl ScaleBuilder {
 
         // Initial draw
         draw(
-            &mut canvas, colors, &font, &prompt_canvas, value, thumb_hovered, dragging,
-            &ok_button, &cancel_button, self.hide_value,
-            padding, slider_x, slider_y, slider_width, slider_height,
-            thumb_y, thumb_size, value_y, prompt_y, physical_width, scale,
+            &mut canvas,
+            colors,
+            &font,
+            &prompt_canvas,
+            value,
+            thumb_hovered,
+            dragging,
+            &ok_button,
+            &cancel_button,
+            self.hide_value,
+            padding,
+            slider_x,
+            slider_y,
+            slider_width,
+            slider_height,
+            thumb_y,
+            thumb_size,
+            value_y,
+            prompt_y,
+            physical_width,
+            scale,
             &value_to_thumb_x,
         );
         window.set_contents(&canvas)?;
@@ -508,10 +547,27 @@ impl ScaleBuilder {
 
             if needs_redraw {
                 draw(
-                    &mut canvas, colors, &font, &prompt_canvas, value, thumb_hovered, dragging,
-                    &ok_button, &cancel_button, self.hide_value,
-                    padding, slider_x, slider_y, slider_width, slider_height,
-                    thumb_y, thumb_size, value_y, prompt_y, physical_width, scale,
+                    &mut canvas,
+                    colors,
+                    &font,
+                    &prompt_canvas,
+                    value,
+                    thumb_hovered,
+                    dragging,
+                    &ok_button,
+                    &cancel_button,
+                    self.hide_value,
+                    padding,
+                    slider_x,
+                    slider_y,
+                    slider_width,
+                    slider_height,
+                    thumb_y,
+                    thumb_size,
+                    value_y,
+                    prompt_y,
+                    physical_width,
+                    scale,
                     &value_to_thumb_x,
                 );
                 window.set_contents(&canvas)?;

@@ -1,7 +1,6 @@
 //! Progress bar widget.
 
-use crate::render::Canvas;
-use crate::ui::Colors;
+use crate::{render::Canvas, ui::Colors};
 
 const BASE_BAR_HEIGHT: u32 = 20;
 const BASE_BAR_RADIUS: f32 = 4.0;

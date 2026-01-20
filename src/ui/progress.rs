@@ -1,17 +1,21 @@
 //! Progress dialog implementation.
 
-use std::io::{BufRead, BufReader};
-use std::sync::mpsc::{self, TryRecvError};
-use std::thread;
-use std::time::Duration;
+use std::{
+    io::{BufRead, BufReader},
+    sync::mpsc::{self, TryRecvError},
+    thread,
+    time::Duration,
+};
 
-use crate::backend::{Window, WindowEvent, create_window};
-use crate::error::Error;
-use crate::render::{Canvas, Font};
-use crate::ui::Colors;
-use crate::ui::widgets::Widget;
-use crate::ui::widgets::button::Button;
-use crate::ui::widgets::progress_bar::ProgressBar;
+use crate::{
+    backend::{create_window, Window, WindowEvent},
+    error::Error,
+    render::{Canvas, Font},
+    ui::{
+        widgets::{button::Button, progress_bar::ProgressBar, Widget},
+        Colors,
+    },
+};
 
 const BASE_PADDING: u32 = 20;
 const BASE_BAR_WIDTH: u32 = 300;
@@ -122,7 +126,8 @@ impl ProgressBuilder {
         let temp_bar = ProgressBar::new(BASE_BAR_WIDTH, 1.0);
 
         let calc_width = BASE_BAR_WIDTH + BASE_PADDING * 2;
-        let calc_height = BASE_PADDING * 3 + BASE_TEXT_HEIGHT + 10 + temp_bar.height() + 10 + BASE_BUTTON_HEIGHT;
+        let calc_height =
+            BASE_PADDING * 3 + BASE_TEXT_HEIGHT + 10 + temp_bar.height() + 10 + BASE_BUTTON_HEIGHT;
         drop(temp_font);
         drop(temp_button);
         drop(temp_bar);

@@ -2,22 +2,24 @@
 //!
 //! This library provides simple GUI dialogs for shell scripts and command-line tools.
 
-pub mod error;
 pub(crate) mod backend;
+pub mod error;
 pub(crate) mod render;
 pub mod ui;
 
 pub use error::Error;
-pub use ui::{ButtonPreset, Colors, DialogResult, Icon, THEME_DARK, THEME_LIGHT};
-pub use ui::calendar::{CalendarBuilder, CalendarResult};
-pub use ui::entry::{EntryBuilder, EntryResult};
-pub use ui::file_select::{FileSelectBuilder, FileSelectResult};
-pub use ui::forms::{FormsBuilder, FormsResult};
-pub use ui::list::{ListBuilder, ListMode, ListResult};
-pub use ui::message::MessageBuilder;
-pub use ui::progress::{ProgressBuilder, ProgressResult};
-pub use ui::scale::{ScaleBuilder, ScaleResult};
-pub use ui::text_info::{TextInfoBuilder, TextInfoResult};
+pub use ui::{
+    calendar::{CalendarBuilder, CalendarResult},
+    entry::{EntryBuilder, EntryResult},
+    file_select::{FileSelectBuilder, FileSelectResult},
+    forms::{FormsBuilder, FormsResult},
+    list::{ListBuilder, ListMode, ListResult},
+    message::MessageBuilder,
+    progress::{ProgressBuilder, ProgressResult},
+    scale::{ScaleBuilder, ScaleResult},
+    text_info::{TextInfoBuilder, TextInfoResult},
+    ButtonPreset, Colors, DialogResult, Icon, THEME_DARK, THEME_LIGHT,
+};
 
 /// Creates a new message dialog builder.
 ///
