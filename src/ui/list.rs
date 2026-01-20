@@ -307,6 +307,8 @@ impl ListBuilder {
         };
         let list_height = (logical_list_height as f32 * scale) as u32;
 
+        let total_content_width = checkbox_col + col_widths.iter().sum::<u32>();
+
         // Create buttons at physical scale
         let mut ok_button = Button::new("OK", &font, scale);
         let mut cancel_button = Button::new("Cancel", &font, scale);
@@ -334,11 +336,17 @@ impl ListBuilder {
         // Create canvas at PHYSICAL dimensions
         let mut canvas = Canvas::new(physical_width, physical_height);
         let mut scroll_offset = 0usize;
+        let mut h_scroll_offset = 0u32;
         let mut hovered_row: Option<usize> = None;
         let mut single_selected: Option<usize> = None;
+        let mut h_scroll_mode = false;
+
+        // Create sub-canvas for the list area to enable clipping
+        let mut list_canvas = Canvas::new(list_w, list_h);
 
         // Draw function with scaled parameters
         let draw = |canvas: &mut Canvas,
+                    list_canvas: &mut Canvas,
                     colors: &Colors,
                     font: &Font,
                     text: &str,
@@ -348,10 +356,12 @@ impl ListBuilder {
                     selected: &[bool],
                     single_selected: Option<usize>,
                     scroll_offset: usize,
+                    h_scroll_offset: u32,
                     hovered_row: Option<usize>,
                     mode: ListMode,
                     ok_button: &Button,
                     cancel_button: &Button,
+                    total_content_width: u32,
                     // Scaled parameters
                     padding: u32,
                     row_height: u32,
@@ -372,48 +382,53 @@ impl ListBuilder {
                 canvas.draw_canvas(&tc, padding as i32, text_y);
             }
 
-            // List background
-            canvas.fill_rounded_rect(
-                list_x as f32,
-                list_y as f32,
-                list_w as f32,
-                list_h as f32,
-                6.0 * scale,
-                colors.input_bg,
-            );
+            // Clear list canvas
+            list_canvas.fill(colors.input_bg);
+
+            // List background is already filled above
 
             // Draw header if columns exist
-            let mut data_y = list_y;
+            let mut data_y_local = 0i32;
             if !columns.is_empty() {
                 let header_bg = darken(colors.input_bg, 0.05);
-                canvas.fill_rect(
-                    list_x as f32,
-                    list_y as f32,
+                list_canvas.fill_rect(
+                    0.0,
+                    0.0,
                     list_w as f32,
                     row_height as f32,
                     header_bg,
                 );
 
-                let mut cx = list_x + checkbox_col as i32;
+                let mut cx = checkbox_col as i32 - h_scroll_offset as i32;
                 for (i, col) in columns.iter().enumerate() {
-                    let tc = font.render(col).with_color(rgb(140, 140, 140)).finish();
-                    canvas.draw_canvas(
+                    let mut display_col = col.to_string();
+                    let col_width = col_widths.get(i).copied().unwrap_or((100.0 * scale) as u32);
+                    let mut w: f32 = font.render(&display_col).measure().0;
+                    while w > (col_width as f32 - 16.0 * scale) && !display_col.is_empty() {
+                        display_col = display_col[..display_col.len().saturating_sub(1)].to_string();
+                        w = font.render(&display_col).measure().0;
+                    }
+                    if display_col.len() < col.len() {
+                        display_col += "...";
+                    }
+                    let tc = font.render(&display_col).with_color(rgb(140, 140, 140)).finish();
+                    list_canvas.draw_canvas(
                         &tc,
                         cx + (8.0 * scale) as i32,
-                        list_y + (6.0 * scale) as i32,
+                        (6.0 * scale) as i32,
                     );
-                    cx += col_widths.get(i).copied().unwrap_or((100.0 * scale) as u32) as i32;
+                    cx += col_width as i32;
                 }
 
                 // Separator
-                canvas.fill_rect(
-                    list_x as f32,
-                    (list_y + row_height as i32) as f32,
+                list_canvas.fill_rect(
+                    0.0,
+                    row_height as f32,
                     list_w as f32,
                     1.0,
                     colors.input_border,
                 );
-                data_y += row_height as i32 + 1;
+                data_y_local += row_height as i32 + 1;
             }
 
             // Draw rows
@@ -426,7 +441,7 @@ impl ListBuilder {
                 (scroll_offset..rows.len().min(scroll_offset + data_visible)).enumerate()
             {
                 let row = &rows[ri];
-                let ry = data_y + (vi as u32 * row_height) as i32;
+                let ry = data_y_local + (vi as u32 * row_height) as i32;
 
                 // Background
                 let is_hovered = hovered_row == Some(ri);
@@ -445,8 +460,8 @@ impl ListBuilder {
                     colors.input_bg
                 };
 
-                canvas.fill_rect(
-                    (list_x + 1) as f32,
+                list_canvas.fill_rect(
+                    1.0,
                     ry as f32,
                     (list_w - 2) as f32,
                     row_height as f32,
@@ -455,13 +470,13 @@ impl ListBuilder {
 
                 // Checkbox/Radio
                 if mode != ListMode::Single {
-                    let check_x = list_x + (8.0 * scale) as i32;
+                    let check_x = (8.0 * scale) as i32 - h_scroll_offset as i32;
                     let check_y = ry + ((row_height - checkbox_size) / 2) as i32;
                     let checked = selected.get(ri).copied().unwrap_or(false);
 
                     if mode == ListMode::Checklist {
                         draw_checkbox(
-                            canvas,
+                            list_canvas,
                             check_x,
                             check_y,
                             checked,
@@ -471,7 +486,7 @@ impl ListBuilder {
                         );
                     } else {
                         draw_radio(
-                            canvas,
+                            list_canvas,
                             check_x,
                             check_y,
                             checked,
@@ -483,7 +498,7 @@ impl ListBuilder {
                 }
 
                 // Cell values
-                let mut cx = list_x + checkbox_col as i32;
+                let mut cx = checkbox_col as i32 - h_scroll_offset as i32;
                 for (ci, cell) in row.iter().enumerate() {
                     if ci < col_widths.len() {
                         let text_color = if is_selected {
@@ -491,31 +506,41 @@ impl ListBuilder {
                         } else {
                             colors.text
                         };
-                        let tc = font.render(cell).with_color(text_color).finish();
-                        canvas.draw_canvas(
+                        let mut display_cell = cell.clone();
+                        let col_width = col_widths[ci];
+                        let mut w: f32 = font.render(&display_cell).measure().0;
+                        while w > (col_width as f32 - 16.0 * scale) && !display_cell.is_empty() {
+                            display_cell = display_cell[..display_cell.len().saturating_sub(1)].to_string();
+                            w = font.render(&display_cell).measure().0;
+                        }
+                        if display_cell.len() < cell.len() {
+                            display_cell += "...";
+                        }
+                        let tc = font.render(&display_cell).with_color(text_color).finish();
+                        list_canvas.draw_canvas(
                             &tc,
                             cx + (8.0 * scale) as i32,
                             ry + (6.0 * scale) as i32,
                         );
-                        cx += col_widths[ci] as i32;
+                        cx += col_width as i32;
                     }
                 }
             }
 
-            // Scrollbar
+            // Vertical Scrollbar
             if rows.len() > data_visible {
-                let sb_x = list_x + list_w as i32 - (8.0 * scale) as i32;
+                let sb_x = list_w as i32 - (8.0 * scale) as i32;
                 let sb_h = list_h as f32
                     - if columns.is_empty() {
                         0.0
                     } else {
                         row_height as f32 + 1.0
                     };
-                let sb_y = data_y as f32;
+                let sb_y = data_y_local as f32;
                 let thumb_h = (data_visible as f32 / rows.len() as f32 * sb_h).max(20.0 * scale);
                 let thumb_y = scroll_offset as f32 / rows.len() as f32 * sb_h;
 
-                canvas.fill_rounded_rect(
+                list_canvas.fill_rounded_rect(
                     sb_x as f32,
                     sb_y,
                     6.0 * scale,
@@ -523,7 +548,7 @@ impl ListBuilder {
                     3.0 * scale,
                     darken(colors.input_bg, 0.05),
                 );
-                canvas.fill_rounded_rect(
+                list_canvas.fill_rounded_rect(
                     sb_x as f32,
                     sb_y + thumb_y,
                     6.0 * scale,
@@ -533,16 +558,50 @@ impl ListBuilder {
                 );
             }
 
+            // Horizontal Scrollbar
+            if total_content_width > list_w {
+                let sb_x = 0.0;
+                let sb_y = list_h as i32 - (8.0 * scale) as i32;
+                let sb_w = list_w as f32;
+                let max_scroll = total_content_width.saturating_sub(list_w);
+                let thumb_w = (list_w as f32 / total_content_width as f32 * sb_w).max(20.0 * scale);
+                let thumb_x = if max_scroll > 0 {
+                    h_scroll_offset as f32 / max_scroll as f32 * (sb_w - thumb_w)
+                } else {
+                    0.0
+                };
+
+                list_canvas.fill_rounded_rect(
+                    sb_x,
+                    sb_y as f32,
+                    sb_w,
+                    6.0 * scale,
+                    3.0 * scale,
+                    darken(colors.input_bg, 0.05),
+                );
+                list_canvas.fill_rounded_rect(
+                    sb_x + thumb_x,
+                    sb_y as f32,
+                    thumb_w,
+                    6.0 * scale,
+                    3.0 * scale,
+                    colors.input_border,
+                );
+            }
+
             // Border
-            canvas.stroke_rounded_rect(
-                list_x as f32,
-                list_y as f32,
+            list_canvas.stroke_rounded_rect(
+                0.0,
+                0.0,
                 list_w as f32,
                 list_h as f32,
                 6.0 * scale,
                 colors.input_border,
                 1.0,
             );
+
+            // Draw the list canvas to main canvas
+            canvas.draw_canvas(&list_canvas, list_x, list_y);
 
             // Buttons
             ok_button.draw_to(canvas, colors, font);
@@ -552,6 +611,7 @@ impl ListBuilder {
         // Initial draw
         draw(
             &mut canvas,
+            &mut list_canvas,
             colors,
             &font,
             &self.text,
@@ -561,10 +621,12 @@ impl ListBuilder {
             &selected,
             single_selected,
             scroll_offset,
+            h_scroll_offset,
             hovered_row,
             self.mode,
             &ok_button,
             &cancel_button,
+            total_content_width,
             padding,
             row_height,
             checkbox_size,
@@ -646,32 +708,77 @@ impl ListBuilder {
                         needs_redraw = true;
                     }
                 }
-                WindowEvent::Scroll(direction) => {
-                    match direction {
-                        crate::backend::ScrollDirection::Up => {
-                            if scroll_offset > 0 {
-                                scroll_offset = scroll_offset.saturating_sub(2);
-                                needs_redraw = true;
-                            }
-                        }
-                        crate::backend::ScrollDirection::Down => {
-                            if scroll_offset + data_visible < rows.len() {
-                                scroll_offset = (scroll_offset + 2)
-                                    .min(rows.len().saturating_sub(data_visible));
-                                needs_redraw = true;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
+                 WindowEvent::Scroll(direction) => {
+                     if h_scroll_mode {
+                         // Shift + wheel: horizontal scroll
+                         match direction {
+                             crate::backend::ScrollDirection::Up => {
+                                 if total_content_width > list_w {
+                                     h_scroll_offset = h_scroll_offset.saturating_sub(100);
+                                     needs_redraw = true;
+                                 }
+                             }
+                             crate::backend::ScrollDirection::Down => {
+                                 if total_content_width > list_w {
+                                     let max_scroll = total_content_width.saturating_sub(list_w);
+                                     h_scroll_offset = (h_scroll_offset + 100).min(max_scroll);
+                                     needs_redraw = true;
+                                 }
+                             }
+                             _ => {}
+                         }
+                     } else {
+                         // Normal wheel: vertical scroll
+                         match direction {
+                             crate::backend::ScrollDirection::Up => {
+                                 if scroll_offset > 0 {
+                                     scroll_offset = scroll_offset.saturating_sub(2);
+                                     needs_redraw = true;
+                                 }
+                             }
+                             crate::backend::ScrollDirection::Down => {
+                                 if scroll_offset + data_visible < rows.len() {
+                                     scroll_offset = (scroll_offset + 2)
+                                         .min(rows.len().saturating_sub(data_visible));
+                                     needs_redraw = true;
+                                 }
+                             }
+                             crate::backend::ScrollDirection::Left => {
+                                 if total_content_width > list_w {
+                                     h_scroll_offset = h_scroll_offset.saturating_sub(100);
+                                     needs_redraw = true;
+                                 }
+                             }
+                             crate::backend::ScrollDirection::Right => {
+                                 if total_content_width > list_w {
+                                     let max_scroll = total_content_width.saturating_sub(list_w);
+                                     h_scroll_offset = (h_scroll_offset + 100).min(max_scroll);
+                                     needs_redraw = true;
+                                 }
+                             }
+                         }
+                     }
+                 }
                 WindowEvent::KeyPress(key_event) => {
-                    const KEY_UP: u32 = 0xff52;
-                    const KEY_DOWN: u32 = 0xff54;
-                    const KEY_SPACE: u32 = 0x20;
-                    const KEY_RETURN: u32 = 0xff0d;
-                    const KEY_ESCAPE: u32 = 0xff1b;
+                     const KEY_UP: u32 = 0xff52;
+                     const KEY_DOWN: u32 = 0xff54;
+                     const KEY_LEFT: u32 = 0xff51;
+                     const KEY_RIGHT: u32 = 0xff53;
+                     const KEY_LSHIFT: u32 = 0xffe1;
+                     const KEY_RSHIFT: u32 = 0xffe2;
+                     const KEY_SPACE: u32 = 0x20;
+                     const KEY_RETURN: u32 = 0xff0d;
+                     const KEY_ESCAPE: u32 = 0xff1b;
 
-                    match key_event.keysym {
+                     // Handle shift for scroll mode
+                     if key_event.keysym == KEY_LSHIFT || key_event.keysym == KEY_RSHIFT {
+                         h_scroll_mode = true;
+                         continue;
+                     } else {
+                         h_scroll_mode = false;
+                     }
+
+                     match key_event.keysym {
                         KEY_UP => {
                             if self.mode == ListMode::Single {
                                 if let Some(sel) = single_selected {
@@ -688,22 +795,35 @@ impl ListBuilder {
                                 }
                             }
                         }
-                        KEY_DOWN => {
-                            if self.mode == ListMode::Single {
-                                if let Some(sel) = single_selected {
-                                    if sel + 1 < rows.len() {
-                                        single_selected = Some(sel + 1);
-                                        if sel + 1 >= scroll_offset + data_visible {
-                                            scroll_offset = sel + 2 - data_visible;
-                                        }
-                                        needs_redraw = true;
-                                    }
-                                } else if !rows.is_empty() {
-                                    single_selected = Some(0);
-                                    needs_redraw = true;
-                                }
-                            }
-                        }
+                         KEY_DOWN => {
+                             if self.mode == ListMode::Single {
+                                 if let Some(sel) = single_selected {
+                                     if sel + 1 < rows.len() {
+                                         single_selected = Some(sel + 1);
+                                         if sel + 1 >= scroll_offset + data_visible {
+                                             scroll_offset = sel + 2 - data_visible;
+                                         }
+                                         needs_redraw = true;
+                                     }
+                                 } else if !rows.is_empty() {
+                                     single_selected = Some(0);
+                                     needs_redraw = true;
+                                 }
+                             }
+                         }
+                         KEY_LEFT => {
+                             if total_content_width > list_w {
+                                 h_scroll_offset = h_scroll_offset.saturating_sub(100);
+                                 needs_redraw = true;
+                             }
+                         }
+                         KEY_RIGHT => {
+                             if total_content_width > list_w {
+                                 let max_scroll = total_content_width.saturating_sub(list_w);
+                                 h_scroll_offset = (h_scroll_offset + 100).min(max_scroll);
+                                 needs_redraw = true;
+                             }
+                         }
                         KEY_SPACE => {
                             if self.mode == ListMode::Checklist {
                                 if let Some(ri) = hovered_row.or(single_selected) {
@@ -748,6 +868,7 @@ impl ListBuilder {
             if needs_redraw {
                 draw(
                     &mut canvas,
+                    &mut list_canvas,
                     colors,
                     &font,
                     &self.text,
@@ -757,10 +878,12 @@ impl ListBuilder {
                     &selected,
                     single_selected,
                     scroll_offset,
+                    h_scroll_offset,
                     hovered_row,
                     self.mode,
                     &ok_button,
                     &cancel_button,
+                    total_content_width,
                     padding,
                     row_height,
                     checkbox_size,
