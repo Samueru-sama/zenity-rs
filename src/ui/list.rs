@@ -285,7 +285,7 @@ impl ListBuilder {
             let (w, _) = font.render(col).measure();
             col_widths[i] = col_widths[i].max(w as u32 + (20.0 * scale) as u32);
         }
-        for row in &rows {
+        for row in &display_rows {
             for (i, cell) in row.iter().enumerate() {
                 if i < num_cols {
                     let (w, _) = font.render(cell).measure();
