@@ -78,7 +78,7 @@ impl DisplayConnection for Connection {
 
 const MOVERESIZE_MOVE: u32 = 8;
 const KEYCODE_ESC: u8 = 9;
-const WM_CLASS: &[u8] = b"zenity-rs\0zenity-rs\0";
+const WM_CLASS: &[u8] = b"zenity\0Zenity\0";
 
 // X11 cursor font character constants
 const XC_LEFT_PTR: u16 = 68; // Default arrow
