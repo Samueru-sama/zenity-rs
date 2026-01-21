@@ -395,23 +395,9 @@ impl ListBuilder {
 
                 let mut cx = checkbox_col as i32 - h_scroll_offset as i32;
                 for (i, col) in columns.iter().enumerate() {
-                    let mut display_col = col.to_string();
-                    let col_width = col_widths.get(i).copied().unwrap_or((100.0 * scale) as u32);
-                    let mut w: f32 = font.render(&display_col).measure().0;
-                    while w > (col_width as f32 - 16.0 * scale) && !display_col.is_empty() {
-                        display_col =
-                            display_col[..display_col.len().saturating_sub(1)].to_string();
-                        w = font.render(&display_col).measure().0;
-                    }
-                    if display_col.len() < col.len() {
-                        display_col += "...";
-                    }
-                    let tc = font
-                        .render(&display_col)
-                        .with_color(rgb(140, 140, 140))
-                        .finish();
+                    let tc = font.render(col).with_color(rgb(140, 140, 140)).finish();
                     list_canvas.draw_canvas(&tc, cx + (8.0 * scale) as i32, (6.0 * scale) as i32);
-                    cx += col_width as i32;
+                    cx += col_widths.get(i).copied().unwrap_or((100.0 * scale) as u32) as i32;
                 }
 
                 // Separator
@@ -494,24 +480,13 @@ impl ListBuilder {
                         } else {
                             colors.text
                         };
-                        let mut display_cell = cell.clone();
-                        let col_width = col_widths[ci];
-                        let mut w: f32 = font.render(&display_cell).measure().0;
-                        while w > (col_width as f32 - 16.0 * scale) && !display_cell.is_empty() {
-                            display_cell =
-                                display_cell[..display_cell.len().saturating_sub(1)].to_string();
-                            w = font.render(&display_cell).measure().0;
-                        }
-                        if display_cell.len() < cell.len() {
-                            display_cell += "...";
-                        }
-                        let tc = font.render(&display_cell).with_color(text_color).finish();
+                        let tc = font.render(cell).with_color(text_color).finish();
                         list_canvas.draw_canvas(
                             &tc,
                             cx + (8.0 * scale) as i32,
                             ry + (6.0 * scale) as i32,
                         );
-                        cx += col_width as i32;
+                        cx += col_widths[ci] as i32;
                     }
                 }
             }
