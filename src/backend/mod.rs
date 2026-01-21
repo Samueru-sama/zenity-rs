@@ -181,6 +181,59 @@ impl Window for AnyWindow {
 /// Tries Wayland first (if WAYLAND_DISPLAY is set), then falls back to X11.
 pub(crate) fn create_window(width: u16, height: u16) -> Result<AnyWindow, Error> {
     #[cfg(feature = "wayland")]
+    // If WAYLAND_DISPLAY isn't set, look in XDG_RUNTIME_DIR for wayland-* entries.
+    // This logic:
+    //  - only accepts names of the form `wayland-<digits>` (so `wayland-0.lock` is ignored)
+    //  - prefers `wayland-0` if present; otherwise uses a single candidate, or picks the first candidate while warning
+    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
+        if let Some(xdg_runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
+            let xdg_path = std::path::PathBuf::from(&xdg_runtime);
+            match std::fs::read_dir(&xdg_path) {
+                Ok(rd) => {
+                    let mut candidates: Vec<std::ffi::OsString> = Vec::new();
+                    for entry in rd.flatten() {
+                        let fname = entry.file_name();
+                        if let Some(s) = fname.to_str() {
+                            if s.starts_with("wayland-") {
+                                // Ensure the suffix after "wayland-" is all digits (reject ".lock", etc.)
+                                let suffix = &s["wayland-".len()..];
+                                if suffix.is_empty() || !suffix.chars().all(|c| c.is_ascii_digit()) {
+                                    continue;
+                                }
+                                candidates.push(fname);
+                            }
+                        }
+                    }
+
+                    if !candidates.is_empty() {
+                        // Prefer wayland-0 if present
+                        let chosen = candidates.iter().find(|os| {
+                            os.to_str().map(|s| s == "wayland-0").unwrap_or(false)
+                        }).cloned()
+                        .or_else(|| {
+                            if candidates.len() == 1 {
+                                Some(candidates[0].clone())
+                            } else {
+                                eprintln!("zenity-rs: multiple wayland socket candidates found: {:?}", candidates);
+                                Some(candidates[0].clone())
+                            }
+                        });
+
+                        if let Some(entry) = chosen {
+                            if let Some(name) = entry.to_str() {
+                                std::env::set_var("WAYLAND_DISPLAY", name);
+                            }
+                        }
+                    }
+                }
+                Err(e) => eprintln!("zenity-rs: failed to read XDG_RUNTIME_DIR {:?}: {}", xdg_path, e),
+            }
+        } else {
+            eprintln!("zenity-rs: XDG_RUNTIME_DIR not set");
+        }
+    }
+
+    #[cfg(feature = "wayland")]
     if std::env::var_os("WAYLAND_DISPLAY").is_some() {
         match wayland::Connection::connect() {
             Ok(conn) => {
