@@ -260,7 +260,18 @@ impl TextInfoBuilder {
                     text_area_h: u32,
                     checkbox_y: i32,
                     scale: f32| {
-            canvas.fill(colors.window_bg);
+            let width = canvas.width() as f32;
+            let height = canvas.height() as f32;
+            let radius = 8.0 * scale;
+
+            canvas.fill_dialog_bg(
+                width,
+                height,
+                colors.window_bg,
+                colors.window_border,
+                colors.window_shadow,
+                radius,
+            );
 
             // Text area background
             canvas.fill_rounded_rect(

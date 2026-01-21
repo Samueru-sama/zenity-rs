@@ -267,8 +267,20 @@ impl ProgressBuilder {
                     cancel_button: &Option<Button>,
                     padding: u32,
                     text_y: i32,
-                    show_time_remaining: bool| {
-            canvas.fill(colors.window_bg);
+                    show_time_remaining: bool,
+                    scale: f32| {
+            let width = canvas.width() as f32;
+            let height = canvas.height() as f32;
+            let radius = 8.0 * scale;
+
+            canvas.fill_dialog_bg(
+                width,
+                height,
+                colors.window_bg,
+                colors.window_border,
+                colors.window_shadow,
+                radius,
+            );
 
             // Draw status text
             if !status_text.is_empty() {
@@ -326,6 +338,7 @@ impl ProgressBuilder {
             padding,
             text_y,
             self.show_time_remaining,
+            scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -400,6 +413,7 @@ impl ProgressBuilder {
                             padding,
                             text_y,
                             self.show_time_remaining,
+                            scale,
                         );
                         window.set_contents(&canvas)?;
                         std::thread::sleep(Duration::from_millis(16));
@@ -454,6 +468,7 @@ impl ProgressBuilder {
                     padding,
                     text_y,
                     self.show_time_remaining,
+                    scale,
                 );
                 window.set_contents(&canvas)?;
             }

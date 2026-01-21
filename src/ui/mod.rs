@@ -31,6 +31,8 @@ pub struct Colors {
     pub progress_bg: Rgba,
     pub progress_fill: Rgba,
     pub progress_border: Rgba,
+    pub window_border: Rgba,
+    pub window_shadow: Rgba,
 }
 
 /// Light theme colors.
@@ -50,6 +52,8 @@ pub static THEME_LIGHT: Colors = Colors {
     progress_bg: rgb(230, 230, 230),
     progress_fill: rgb(70, 140, 220),
     progress_border: rgb(200, 200, 200),
+    window_border: rgb(180, 180, 180),
+    window_shadow: Rgba::new(0, 0, 0, 50),
 };
 
 /// Dark theme colors.
@@ -69,6 +73,8 @@ pub static THEME_DARK: Colors = Colors {
     progress_bg: rgb(60, 60, 60),
     progress_fill: rgb(70, 140, 220),
     progress_border: rgb(90, 90, 90),
+    window_border: rgb(70, 70, 70),
+    window_shadow: Rgba::new(0, 0, 0, 80),
 };
 
 /// Detect the current system theme.

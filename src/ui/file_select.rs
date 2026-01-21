@@ -261,9 +261,20 @@ impl FileSelectBuilder {
                     ok_button: &Button,
                     cancel_button: &Button,
                     history: &[PathBuf],
-                    history_index: usize| {
-            // Background
-            canvas.fill(colors.window_bg);
+                    history_index: usize,
+                    scale: f32| {
+            let width = canvas.width() as f32;
+            let height = canvas.height() as f32;
+            let radius = 8.0 * scale;
+
+            canvas.fill_dialog_bg(
+                width,
+                height,
+                colors.window_bg,
+                colors.window_border,
+                colors.window_shadow,
+                radius,
+            );
 
             // Toolbar background
             let toolbar_bg = darken(colors.window_bg, 0.03);
@@ -632,6 +643,7 @@ impl FileSelectBuilder {
             &cancel_button,
             &history,
             history_index,
+            scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -1043,6 +1055,7 @@ impl FileSelectBuilder {
                     &cancel_button,
                     &history,
                     history_index,
+                    scale,
                 );
                 window.set_contents(&canvas)?;
             }

@@ -315,9 +315,19 @@ fn draw_dialog(
     // Scale dimensions
     let icon_size = (BASE_ICON_SIZE as f32 * scale) as u32;
     let padding = (BASE_PADDING as f32 * scale) as u32;
+    let width = canvas.width() as f32;
+    let height = canvas.height() as f32;
+    let radius = 8.0 * scale;
 
-    // Clear background
-    canvas.fill(colors.window_bg);
+    // Draw dialog background with shadow and border
+    canvas.fill_dialog_bg(
+        width,
+        height,
+        colors.window_bg,
+        colors.window_border,
+        colors.window_shadow,
+        radius,
+    );
 
     let mut x = padding as i32;
     let y = padding as i32;

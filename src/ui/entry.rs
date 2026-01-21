@@ -209,8 +209,20 @@ impl EntryBuilder {
                     ok_button: &Button,
                     cancel_button: &Button,
                     padding: u32,
-                    prompt_y: i32| {
-            canvas.fill(colors.window_bg);
+                    prompt_y: i32,
+                    scale: f32| {
+            let width = canvas.width() as f32;
+            let height = canvas.height() as f32;
+            let radius = 8.0 * scale;
+
+            canvas.fill_dialog_bg(
+                width,
+                height,
+                colors.window_bg,
+                colors.window_border,
+                colors.window_shadow,
+                radius,
+            );
 
             // Draw prompt
             if let Some(prompt) = prompt_canvas {
@@ -236,6 +248,7 @@ impl EntryBuilder {
             &cancel_button,
             padding,
             prompt_y,
+            scale,
         );
         window.set_contents(&canvas)?;
         window.show()?;
@@ -263,6 +276,7 @@ impl EntryBuilder {
                         &cancel_button,
                         padding,
                         prompt_y,
+                        scale,
                     );
                     window.set_contents(&canvas)?;
                 }
@@ -353,6 +367,7 @@ impl EntryBuilder {
                     &cancel_button,
                     padding,
                     prompt_y,
+                    scale,
                 );
                 window.set_contents(&canvas)?;
             }

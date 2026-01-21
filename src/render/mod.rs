@@ -118,6 +118,45 @@ impl Canvas {
 
         argb
     }
+
+    /// Fills a dialog background with subtle shadow and border.
+    pub fn fill_dialog_bg(
+        &mut self,
+        width: f32,
+        height: f32,
+        bg_color: Rgba,
+        border_color: Rgba,
+        shadow_color: Rgba,
+        radius: f32,
+    ) {
+        let shadow_offset = 3.0;
+        let border_width = 1.0;
+
+        // Draw shadow (slightly smaller to be fully covered by background)
+        self.fill_rounded_rect(
+            shadow_offset,
+            shadow_offset,
+            width - shadow_offset,
+            height - shadow_offset,
+            radius,
+            shadow_color,
+        );
+
+        // Draw main background (covers shadow completely)
+        self.fill_rounded_rect(0.0, 0.0, width, height, radius, bg_color);
+
+        // Draw border (inset by half border width)
+        let inset = border_width * 0.5;
+        self.stroke_rounded_rect(
+            inset,
+            inset,
+            width - inset * 2.0,
+            height - inset * 2.0,
+            radius,
+            border_color,
+            border_width,
+        );
+    }
 }
 
 /// Creates a rounded rectangle path.
