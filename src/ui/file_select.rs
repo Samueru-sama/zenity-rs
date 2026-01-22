@@ -1,6 +1,7 @@
 //! File selection dialog implementation with enhanced UI.
 
 use std::{
+    collections::HashSet,
     fs::{self, Metadata},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -35,6 +36,7 @@ const BASE_SIZE_COL_WIDTH: u32 = 80;
 #[derive(Debug, Clone)]
 pub enum FileSelectResult {
     Selected(PathBuf),
+    SelectedMultiple(Vec<PathBuf>),
     Cancelled,
     Closed,
 }
@@ -42,7 +44,7 @@ pub enum FileSelectResult {
 impl FileSelectResult {
     pub fn exit_code(&self) -> i32 {
         match self {
-            FileSelectResult::Selected(_) => 0,
+            FileSelectResult::Selected(_) | FileSelectResult::SelectedMultiple(_) => 0,
             FileSelectResult::Cancelled => 1,
             FileSelectResult::Closed => 255,
         }
@@ -85,6 +87,8 @@ pub struct FileSelectBuilder {
     height: Option<u32>,
     colors: Option<&'static Colors>,
     filters: Vec<FileFilter>,
+    multiple: bool,
+    separator: String,
 }
 
 impl FileSelectBuilder {
@@ -99,6 +103,8 @@ impl FileSelectBuilder {
             height: None,
             colors: None,
             filters: Vec::new(),
+            multiple: false,
+            separator: String::from(" "),
         }
     }
 
@@ -144,6 +150,16 @@ impl FileSelectBuilder {
 
     pub fn add_filter(mut self, filter: FileFilter) -> Self {
         self.filters.push(filter);
+        self
+    }
+
+    pub fn multiple(mut self, multiple: bool) -> Self {
+        self.multiple = multiple;
+        self
+    }
+
+    pub fn separator(mut self, separator: &str) -> Self {
+        self.separator = separator.to_string();
         self
     }
 
@@ -209,7 +225,7 @@ impl FileSelectBuilder {
 
         let mut all_entries: Vec<DirEntry> = Vec::new();
         let mut filtered_entries: Vec<usize> = Vec::new(); // Indices into all_entries
-        let mut selected_index: Option<usize> = None;
+        let mut selected_indices: HashSet<usize> = HashSet::new();
         let mut scroll_offset: usize = 0;
         let mut show_hidden = false;
         let mut search_text = String::new();
@@ -270,7 +286,7 @@ impl FileSelectBuilder {
                     quick_access: &[QuickAccess],
                     all_entries: &[DirEntry],
                     filtered_entries: &[usize],
-                    selected_index: Option<usize>,
+                    selected_indices: &HashSet<usize>,
                     scroll_offset: usize,
                     hovered_quick_access: Option<usize>,
                     hovered_entry: Option<usize>,
@@ -502,7 +518,7 @@ impl FileSelectBuilder {
             {
                 let entry = &all_entries[ei];
                 let y = list_y + (vi as u32 * item_height) as i32;
-                let is_selected = selected_index == Some(ei);
+                let is_selected = selected_indices.contains(&ei);
                 let is_hovered = hovered_entry == Some(ei);
 
                 // Alternating background
@@ -651,7 +667,7 @@ impl FileSelectBuilder {
             &quick_access,
             &all_entries,
             &filtered_entries,
-            selected_index,
+            &selected_indices,
             scroll_offset,
             hovered_quick_access,
             hovered_entry,
@@ -738,7 +754,7 @@ impl FileSelectBuilder {
                                     &mut filtered_entries,
                                     &self.filters,
                                 );
-                                selected_index = None;
+                                selected_indices.clear();
                                 scroll_offset = 0;
                                 needs_redraw = true;
                             }
@@ -762,7 +778,7 @@ impl FileSelectBuilder {
                                     &mut filtered_entries,
                                     &self.filters,
                                 );
-                                selected_index = None;
+                                selected_indices.clear();
                                 scroll_offset = 0;
                                 needs_redraw = true;
                             }
@@ -790,7 +806,7 @@ impl FileSelectBuilder {
                                     &mut filtered_entries,
                                     &self.filters,
                                 );
-                                selected_index = None;
+                                selected_indices.clear();
                                 scroll_offset = 0;
                                 needs_redraw = true;
                             }
@@ -818,7 +834,7 @@ impl FileSelectBuilder {
                                     &mut filtered_entries,
                                     &self.filters,
                                 );
-                                selected_index = None;
+                                selected_indices.clear();
                                 scroll_offset = 0;
                                 needs_redraw = true;
                             }
@@ -840,7 +856,7 @@ impl FileSelectBuilder {
                                 &mut filtered_entries,
                                 &self.filters,
                             );
-                            selected_index = None;
+                            selected_indices.clear();
                             scroll_offset = 0;
                             needs_redraw = true;
                         }
@@ -868,7 +884,7 @@ impl FileSelectBuilder {
                                 &mut filtered_entries,
                                 &self.filters,
                             );
-                            selected_index = None;
+                            selected_indices.clear();
                             scroll_offset = 0;
                             needs_redraw = true;
                         }
@@ -876,35 +892,45 @@ impl FileSelectBuilder {
 
                     // File list click
                     if let Some(ei) = hovered_entry {
-                        if selected_index == Some(ei) {
-                            // Double click - activate
-                            let entry = &all_entries[ei];
-                            if entry.is_dir {
-                                navigate_to(
-                                    entry.path.clone(),
-                                    &mut current_dir,
-                                    &mut history,
-                                    &mut history_index,
-                                );
-                                load_directory(
-                                    &current_dir,
-                                    &mut all_entries,
-                                    self.directory,
-                                    show_hidden,
-                                );
-                                update_filtered(
-                                    &all_entries,
-                                    &search_text,
-                                    &mut filtered_entries,
-                                    &self.filters,
-                                );
-                                selected_index = None;
-                                scroll_offset = 0;
-                            } else if !self.directory {
-                                return Ok(FileSelectResult::Selected(entry.path.clone()));
+                        if self.multiple {
+                            // Toggle selection in multiple mode
+                            if selected_indices.contains(&ei) {
+                                selected_indices.remove(&ei);
+                            } else {
+                                selected_indices.insert(ei);
                             }
                         } else {
-                            selected_index = Some(ei);
+                            // Single click - activate if already selected (double click behavior)
+                            if selected_indices.contains(&ei) {
+                                let entry = &all_entries[ei];
+                                if entry.is_dir {
+                                    navigate_to(
+                                        entry.path.clone(),
+                                        &mut current_dir,
+                                        &mut history,
+                                        &mut history_index,
+                                    );
+                                    load_directory(
+                                        &current_dir,
+                                        &mut all_entries,
+                                        self.directory,
+                                        show_hidden,
+                                    );
+                                    update_filtered(
+                                        &all_entries,
+                                        &search_text,
+                                        &mut filtered_entries,
+                                        &self.filters,
+                                    );
+                                    selected_indices.clear();
+                                    scroll_offset = 0;
+                                } else if !self.directory {
+                                    return Ok(FileSelectResult::Selected(entry.path.clone()));
+                                }
+                            } else {
+                                selected_indices.clear();
+                                selected_indices.insert(ei);
+                            }
                         }
                         needs_redraw = true;
                     }
@@ -944,44 +970,102 @@ impl FileSelectBuilder {
                     if !search_input.has_focus() {
                         match key_event.keysym {
                             KEY_UP => {
-                                if let Some(sel) = selected_index {
-                                    // Find current position in filtered
-                                    if let Some(pos) =
-                                        filtered_entries.iter().position(|&e| e == sel)
-                                    {
-                                        if pos > 0 {
-                                            selected_index = Some(filtered_entries[pos - 1]);
-                                            if pos - 1 < scroll_offset {
-                                                scroll_offset = pos - 1;
+                                if !filtered_entries.is_empty() {
+                                    let new_index =
+                                        if let Some(&sel) = selected_indices.iter().next() {
+                                            if let Some(pos) =
+                                                filtered_entries.iter().position(|&e| e == sel)
+                                            {
+                                                if pos > 0 {
+                                                    Some(filtered_entries[pos - 1])
+                                                } else {
+                                                    Some(sel)
+                                                }
+                                            } else {
+                                                Some(filtered_entries[0])
                                             }
-                                            needs_redraw = true;
+                                        } else {
+                                            Some(filtered_entries[0])
+                                        };
+
+                                    if let Some(idx) = new_index {
+                                        if self.multiple {
+                                            if selected_indices.contains(&idx) {
+                                                selected_indices.remove(&idx);
+                                            } else {
+                                                selected_indices.insert(idx);
+                                            }
+                                        } else {
+                                            selected_indices.clear();
+                                            selected_indices.insert(idx);
                                         }
+
+                                        if let Some(pos) =
+                                            filtered_entries.iter().position(|&e| e == idx)
+                                        {
+                                            if pos < scroll_offset {
+                                                scroll_offset = pos;
+                                            }
+                                        }
+                                        needs_redraw = true;
                                     }
-                                } else if !filtered_entries.is_empty() {
-                                    selected_index = Some(filtered_entries[0]);
-                                    needs_redraw = true;
                                 }
                             }
                             KEY_DOWN => {
-                                if let Some(sel) = selected_index {
-                                    if let Some(pos) =
-                                        filtered_entries.iter().position(|&e| e == sel)
-                                    {
-                                        if pos + 1 < filtered_entries.len() {
-                                            selected_index = Some(filtered_entries[pos + 1]);
-                                            if pos + 1 >= scroll_offset + visible_items {
-                                                scroll_offset = pos + 2 - visible_items;
+                                if !filtered_entries.is_empty() {
+                                    let new_index =
+                                        if let Some(&sel) = selected_indices.iter().next() {
+                                            if let Some(pos) =
+                                                filtered_entries.iter().position(|&e| e == sel)
+                                            {
+                                                if pos + 1 < filtered_entries.len() {
+                                                    Some(filtered_entries[pos + 1])
+                                                } else {
+                                                    Some(sel)
+                                                }
+                                            } else {
+                                                Some(filtered_entries[0])
                                             }
-                                            needs_redraw = true;
+                                        } else {
+                                            Some(filtered_entries[0])
+                                        };
+
+                                    if let Some(idx) = new_index {
+                                        if self.multiple {
+                                            if selected_indices.contains(&idx) {
+                                                selected_indices.remove(&idx);
+                                            } else {
+                                                selected_indices.insert(idx);
+                                            }
+                                        } else {
+                                            selected_indices.clear();
+                                            selected_indices.insert(idx);
                                         }
+
+                                        if let Some(pos) =
+                                            filtered_entries.iter().position(|&e| e == idx)
+                                        {
+                                            if pos + 1 >= scroll_offset + visible_items {
+                                                scroll_offset = pos + 1 - visible_items + 1;
+                                            }
+                                        }
+                                        needs_redraw = true;
                                     }
-                                } else if !filtered_entries.is_empty() {
-                                    selected_index = Some(filtered_entries[0]);
-                                    needs_redraw = true;
                                 }
                             }
                             KEY_RETURN => {
-                                if let Some(sel) = selected_index {
+                                if self.multiple && !selected_indices.is_empty() {
+                                    let selected_files: Vec<PathBuf> = selected_indices
+                                        .iter()
+                                        .filter(|&ei| !all_entries[*ei].is_dir)
+                                        .map(|&ei| all_entries[ei].path.clone())
+                                        .collect();
+                                    if !selected_files.is_empty() {
+                                        return Ok(FileSelectResult::SelectedMultiple(
+                                            selected_files,
+                                        ));
+                                    }
+                                } else if let Some(&sel) = selected_indices.iter().next() {
                                     let entry = &all_entries[sel];
                                     if entry.is_dir {
                                         navigate_to(
@@ -1002,7 +1086,7 @@ impl FileSelectBuilder {
                                             &mut filtered_entries,
                                             &self.filters,
                                         );
-                                        selected_index = None;
+                                        selected_indices.clear();
                                         scroll_offset = 0;
                                         needs_redraw = true;
                                     } else if !self.directory {
@@ -1030,7 +1114,7 @@ impl FileSelectBuilder {
                                         &mut filtered_entries,
                                         &self.filters,
                                     );
-                                    selected_index = None;
+                                    selected_indices.clear();
                                     scroll_offset = 0;
                                     needs_redraw = true;
                                 }
@@ -1056,7 +1140,7 @@ impl FileSelectBuilder {
                         &mut filtered_entries,
                         &self.filters,
                     );
-                    selected_index = None;
+                    selected_indices.clear();
                     scroll_offset = 0;
                 }
                 needs_redraw = true;
@@ -1067,7 +1151,16 @@ impl FileSelectBuilder {
             needs_redraw |= cancel_button.process_event(&event);
 
             if ok_button.was_clicked() {
-                if let Some(sel) = selected_index {
+                if self.multiple && !selected_indices.is_empty() {
+                    let selected_files: Vec<PathBuf> = selected_indices
+                        .iter()
+                        .filter(|&ei| !all_entries[*ei].is_dir)
+                        .map(|&ei| all_entries[ei].path.clone())
+                        .collect();
+                    if !selected_files.is_empty() {
+                        return Ok(FileSelectResult::SelectedMultiple(selected_files));
+                    }
+                } else if let Some(&sel) = selected_indices.iter().next() {
                     let entry = &all_entries[sel];
                     if self.directory && entry.is_dir {
                         return Ok(FileSelectResult::Selected(entry.path.clone()));
@@ -1105,7 +1198,7 @@ impl FileSelectBuilder {
                     &quick_access,
                     &all_entries,
                     &filtered_entries,
-                    selected_index,
+                    &selected_indices,
                     scroll_offset,
                     hovered_quick_access,
                     hovered_entry,

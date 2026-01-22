@@ -43,7 +43,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     // File selection options
     let mut directory_mode = false;
     let mut save_mode = false;
+    let mut multiple_mode = false;
     let mut filename = String::new();
+    let mut file_separator: Option<String> = None;
     let mut file_filters: Vec<zenity_rs::FileFilter> = Vec::new();
 
     // List options
@@ -127,7 +129,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             // File selection options
             Long("directory") => directory_mode = true,
             Long("save") => save_mode = true,
+            Long("multiple") => multiple_mode = true,
             Long("filename") => filename = parser.value()?.string()?,
+            Long("separator") => file_separator = Some(parser.value()?.string()?),
             Long("file-filter") => {
                 let pattern = parser.value()?.string()?;
                 file_filters.push(zenity_rs::FileFilter {
@@ -315,7 +319,11 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             if !title.is_empty() {
                 builder = builder.title(&title);
             }
-            builder = builder.directory(directory_mode).save(save_mode);
+            builder = builder
+                .directory(directory_mode)
+                .save(save_mode)
+                .multiple(multiple_mode)
+                .separator(&file_separator.as_deref().unwrap_or(" "));
             if !filename.is_empty() {
                 builder = builder.filename(&filename);
             }
@@ -329,7 +337,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 builder = builder.height(h);
             }
             let result = builder.show()?;
-            handle_file_select_result(result)
+            handle_file_select_result(result, file_separator.as_deref().unwrap_or(" "))
         }
         DialogType::List => {
             let mut builder = list();
@@ -492,10 +500,24 @@ fn handle_calendar_result(result: CalendarResult) -> Result<i32, Box<dyn std::er
     }
 }
 
-fn handle_file_select_result(result: FileSelectResult) -> Result<i32, Box<dyn std::error::Error>> {
+fn handle_file_select_result(
+    result: FileSelectResult,
+    separator: &str,
+) -> Result<i32, Box<dyn std::error::Error>> {
     match result {
         FileSelectResult::Selected(path) => {
             println!("{}", path.display());
+            Ok(0)
+        }
+        FileSelectResult::SelectedMultiple(paths) => {
+            println!(
+                "{}",
+                paths
+                    .iter()
+                    .map(|p| p.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(separator)
+            );
             Ok(0)
         }
         FileSelectResult::Cancelled => Ok(1),
@@ -622,6 +644,8 @@ DIALOG TYPES AND OPTIONS:
   --file-selection      Display a file selection dialog
     --directory       Select directories only
     --save            Save mode (allows entering new filename)
+    --multiple        Allow multiple file selection
+    --separator=TEXT  Output separator for multiple files (default: space)
     --filename=TEXT   Default filename/path
     --file-filter=PATTERN  Add file filter (e.g., "*.rs" or "*.txt")
 
@@ -660,7 +684,8 @@ DIALOG TYPES AND OPTIONS:
     zenity-rs --password --text="Enter password:"
     echo "50" | zenity-rs --progress --text="Working..." --auto-close
     zenity-rs --file-selection --save --filename="output.txt"
-    zenity-rs --file-selection --file-filter="*.rs" --file-filter="*.txt"
+    zenity-rs --file-selection --multiple --file-filter="*.rs" --file-filter="*.txt"
+    zenity-rs --file-selection --multiple --separator="|" file1.rs file2.txt file3.rs
     zenity-rs --list --column="Name" --column="Size" file1 10KB file2 20KB
     zenity-rs --calendar --text="Select date:" --year=2024 --month=12
     zenity-rs --text-info --filename=LICENSE --checkbox="I accept"
