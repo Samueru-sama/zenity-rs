@@ -11,7 +11,7 @@ pub use error::Error;
 pub use ui::{
     calendar::{CalendarBuilder, CalendarResult},
     entry::{EntryBuilder, EntryResult},
-    file_select::{FileSelectBuilder, FileSelectResult},
+    file_select::{FileFilter, FileSelectBuilder, FileSelectResult},
     forms::{FormsBuilder, FormsResult},
     list::{ListBuilder, ListMode, ListResult},
     message::MessageBuilder,

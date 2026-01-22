@@ -44,6 +44,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut directory_mode = false;
     let mut save_mode = false;
     let mut filename = String::new();
+    let mut file_filters: Vec<zenity_rs::FileFilter> = Vec::new();
 
     // List options
     let mut columns: Vec<String> = Vec::new();
@@ -127,6 +128,12 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("directory") => directory_mode = true,
             Long("save") => save_mode = true,
             Long("filename") => filename = parser.value()?.string()?,
+            Long("file-filter") => {
+                let pattern = parser.value()?.string()?;
+                file_filters.push(zenity_rs::FileFilter {
+                    pattern,
+                });
+            }
 
             // List options
             Long("column") => columns.push(parser.value()?.string()?),
@@ -311,6 +318,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             builder = builder.directory(directory_mode).save(save_mode);
             if !filename.is_empty() {
                 builder = builder.filename(&filename);
+            }
+            for filter in file_filters {
+                builder = builder.add_filter(filter);
             }
             if let Some(w) = width {
                 builder = builder.width(w);
@@ -613,6 +623,7 @@ DIALOG TYPES AND OPTIONS:
     --directory       Select directories only
     --save            Save mode (allows entering new filename)
     --filename=TEXT   Default filename/path
+    --file-filter=PATTERN  Add file filter (e.g., "*.rs" or "*.txt")
 
   --list                Display a list selection dialog
     --column=TEXT     Add a column header (can be repeated)
@@ -642,13 +653,14 @@ DIALOG TYPES AND OPTIONS:
     --add-password=LABEL Add a password field (can be repeated)
     --separator=CHAR  Output separator (default: |)
 
-EXAMPLES:
+ EXAMPLES:
     zenity-rs --info --text="Operation completed"
     zenity-rs --question --text="Continue?" --timeout=10
     zenity-rs --entry --text="Enter name:" --entry-text="John"
     zenity-rs --password --text="Enter password:"
     echo "50" | zenity-rs --progress --text="Working..." --auto-close
     zenity-rs --file-selection --save --filename="output.txt"
+    zenity-rs --file-selection --file-filter="*.rs" --file-filter="*.txt"
     zenity-rs --list --column="Name" --column="Size" file1 10KB file2 20KB
     zenity-rs --calendar --text="Select date:" --year=2024 --month=12
     zenity-rs --text-info --filename=LICENSE --checkbox="I accept"

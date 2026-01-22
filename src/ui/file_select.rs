@@ -68,6 +68,12 @@ enum QuickAccessIcon {
     Videos,
 }
 
+/// File filter pattern.
+#[derive(Debug, Clone)]
+pub struct FileFilter {
+    pub pattern: String,
+}
+
 /// File selection dialog builder.
 pub struct FileSelectBuilder {
     title: String,
@@ -78,6 +84,7 @@ pub struct FileSelectBuilder {
     width: Option<u32>,
     height: Option<u32>,
     colors: Option<&'static Colors>,
+    filters: Vec<FileFilter>,
 }
 
 impl FileSelectBuilder {
@@ -91,6 +98,7 @@ impl FileSelectBuilder {
             width: None,
             height: None,
             colors: None,
+            filters: Vec::new(),
         }
     }
 
@@ -131,6 +139,11 @@ impl FileSelectBuilder {
 
     pub fn height(mut self, height: u32) -> Self {
         self.height = Some(height);
+        self
+    }
+
+    pub fn add_filter(mut self, filter: FileFilter) -> Self {
+        self.filters.push(filter);
         self
     }
 
@@ -205,7 +218,12 @@ impl FileSelectBuilder {
 
         // Load initial directory
         load_directory(&current_dir, &mut all_entries, self.directory, show_hidden);
-        update_filtered(&all_entries, &search_text, &mut filtered_entries);
+        update_filtered(
+            &all_entries,
+            &search_text,
+            &mut filtered_entries,
+            &self.filters,
+        );
 
         // Calculate layout in physical coordinates
         let sidebar_x = padding as i32;
@@ -714,7 +732,12 @@ impl FileSelectBuilder {
                                     self.directory,
                                     show_hidden,
                                 );
-                                update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                                update_filtered(
+                                    &all_entries,
+                                    &search_text,
+                                    &mut filtered_entries,
+                                    &self.filters,
+                                );
                                 selected_index = None;
                                 scroll_offset = 0;
                                 needs_redraw = true;
@@ -733,7 +756,12 @@ impl FileSelectBuilder {
                                     self.directory,
                                     show_hidden,
                                 );
-                                update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                                update_filtered(
+                                    &all_entries,
+                                    &search_text,
+                                    &mut filtered_entries,
+                                    &self.filters,
+                                );
                                 selected_index = None;
                                 scroll_offset = 0;
                                 needs_redraw = true;
@@ -756,7 +784,12 @@ impl FileSelectBuilder {
                                     self.directory,
                                     show_hidden,
                                 );
-                                update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                                update_filtered(
+                                    &all_entries,
+                                    &search_text,
+                                    &mut filtered_entries,
+                                    &self.filters,
+                                );
                                 selected_index = None;
                                 scroll_offset = 0;
                                 needs_redraw = true;
@@ -779,7 +812,12 @@ impl FileSelectBuilder {
                                     self.directory,
                                     show_hidden,
                                 );
-                                update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                                update_filtered(
+                                    &all_entries,
+                                    &search_text,
+                                    &mut filtered_entries,
+                                    &self.filters,
+                                );
                                 selected_index = None;
                                 scroll_offset = 0;
                                 needs_redraw = true;
@@ -796,7 +834,12 @@ impl FileSelectBuilder {
                                 self.directory,
                                 show_hidden,
                             );
-                            update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                            update_filtered(
+                                &all_entries,
+                                &search_text,
+                                &mut filtered_entries,
+                                &self.filters,
+                            );
                             selected_index = None;
                             scroll_offset = 0;
                             needs_redraw = true;
@@ -819,7 +862,12 @@ impl FileSelectBuilder {
                                 self.directory,
                                 show_hidden,
                             );
-                            update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                            update_filtered(
+                                &all_entries,
+                                &search_text,
+                                &mut filtered_entries,
+                                &self.filters,
+                            );
                             selected_index = None;
                             scroll_offset = 0;
                             needs_redraw = true;
@@ -844,7 +892,12 @@ impl FileSelectBuilder {
                                     self.directory,
                                     show_hidden,
                                 );
-                                update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                                update_filtered(
+                                    &all_entries,
+                                    &search_text,
+                                    &mut filtered_entries,
+                                    &self.filters,
+                                );
                                 selected_index = None;
                                 scroll_offset = 0;
                             } else if !self.directory {
@@ -947,6 +1000,7 @@ impl FileSelectBuilder {
                                             &all_entries,
                                             &search_text,
                                             &mut filtered_entries,
+                                            &self.filters,
                                         );
                                         selected_index = None;
                                         scroll_offset = 0;
@@ -974,6 +1028,7 @@ impl FileSelectBuilder {
                                         &all_entries,
                                         &search_text,
                                         &mut filtered_entries,
+                                        &self.filters,
                                     );
                                     selected_index = None;
                                     scroll_offset = 0;
@@ -995,7 +1050,12 @@ impl FileSelectBuilder {
                 let new_search = search_input.text().to_lowercase();
                 if new_search != search_text {
                     search_text = new_search;
-                    update_filtered(&all_entries, &search_text, &mut filtered_entries);
+                    update_filtered(
+                        &all_entries,
+                        &search_text,
+                        &mut filtered_entries,
+                        &self.filters,
+                    );
                     selected_index = None;
                     scroll_offset = 0;
                 }
@@ -1192,12 +1252,53 @@ fn load_directory(path: &Path, entries: &mut Vec<DirEntry>, dirs_only: bool, sho
     entries.extend(files);
 }
 
-fn update_filtered(all: &[DirEntry], search: &str, filtered: &mut Vec<usize>) {
+fn update_filtered(
+    all: &[DirEntry],
+    search: &str,
+    filtered: &mut Vec<usize>,
+    filters: &[FileFilter],
+) {
     filtered.clear();
     for (i, entry) in all.iter().enumerate() {
-        if search.is_empty() || entry.name.to_lowercase().contains(search) {
+        if entry.is_dir {
             filtered.push(i);
+        } else {
+            let matches_filter = filters.is_empty() || matches_any_filter(&entry.name, filters);
+            let matches_search = search.is_empty() || entry.name.to_lowercase().contains(search);
+            if matches_filter && matches_search {
+                filtered.push(i);
+            }
         }
+    }
+}
+
+fn matches_any_filter(name: &str, filters: &[FileFilter]) -> bool {
+    let name_lower = name.to_lowercase();
+    for filter in filters {
+        if matches_pattern(&name_lower, &filter.pattern) {
+            return true;
+        }
+    }
+    false
+}
+
+fn matches_pattern(name: &str, pattern: &str) -> bool {
+    let pattern_lower = pattern.to_lowercase();
+    if pattern_lower == "*" {
+        return true;
+    }
+
+    if pattern_lower.starts_with("*") && pattern_lower.ends_with("*") {
+        let inner = &pattern_lower[1..pattern_lower.len() - 1];
+        name.contains(inner)
+    } else if pattern_lower.starts_with("*") {
+        let suffix = &pattern_lower[1..];
+        name.ends_with(suffix)
+    } else if pattern_lower.ends_with("*") {
+        let prefix = &pattern_lower[..pattern_lower.len() - 1];
+        name.starts_with(prefix)
+    } else {
+        name == &pattern_lower
     }
 }
 
