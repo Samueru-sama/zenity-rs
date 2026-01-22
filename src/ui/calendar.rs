@@ -148,7 +148,7 @@ impl CalendarBuilder {
         // Create window with LOGICAL dimensions
         let mut window = create_window(logical_width as u16, logical_height as u16)?;
         window.set_title(if self.title.is_empty() {
-            "Select Date"
+            "Calendar selection"
         } else {
             &self.title
         })?;
