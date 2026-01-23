@@ -1312,7 +1312,7 @@ fn load_directory(path: &Path, entries: &mut Vec<DirEntry>, dirs_only: bool, sho
                 continue;
             }
 
-            let metadata = entry.metadata().ok();
+            let metadata = entry.path().metadata().ok();
             let is_dir = metadata.as_ref().map(|m| m.is_dir()).unwrap_or(false);
 
             if dirs_only && !is_dir {
