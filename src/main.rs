@@ -372,7 +372,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 builder = builder.height(h);
             }
             let result = builder.show()?;
-            handle_list_result(result)
+            handle_list_result(result, &separator)
         }
         DialogType::Calendar => {
             let mut builder = calendar();
@@ -472,12 +472,13 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     }
 }
 
-fn handle_list_result(result: ListResult) -> Result<i32, Box<dyn std::error::Error>> {
+fn handle_list_result(
+    result: ListResult,
+    separator: &str,
+) -> Result<i32, Box<dyn std::error::Error>> {
     match result {
         ListResult::Selected(items) => {
-            for item in items {
-                println!("{}", item);
-            }
+            println!("{}", items.join(separator));
             Ok(0)
         }
         ListResult::Cancelled => Ok(1),
