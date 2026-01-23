@@ -27,6 +27,7 @@ pub struct MessageBuilder {
     timeout: Option<u32>,
     width: Option<u32>,
     height: Option<u32>,
+    no_wrap: bool,
     colors: Option<&'static Colors>,
 }
 
@@ -40,6 +41,7 @@ impl MessageBuilder {
             timeout: None,
             width: None,
             height: None,
+            no_wrap: false,
             colors: None,
         }
     }
@@ -85,6 +87,11 @@ impl MessageBuilder {
         self
     }
 
+    pub fn no_wrap(mut self, no_wrap: bool) -> Self {
+        self.no_wrap = no_wrap;
+        self
+    }
+
     pub fn show(self) -> Result<DialogResult, Error> {
         let colors = self.colors.unwrap_or_else(|| crate::ui::detect_theme());
 
@@ -109,14 +116,26 @@ impl MessageBuilder {
         // --width specifies text area width, not total window width
         let text_width = self.width.map(|w| w as f32).unwrap_or(BASE_MAX_TEXT_WIDTH);
 
-        // Calculate logical text size with the specified text width
-        let temp_text = temp_font
-            .render(&self.text)
-            .with_max_width(text_width)
-            .finish();
+        // Calculate logical text size with/without wrapping
+        let temp_text = if self.no_wrap {
+            temp_font.render(&self.text).finish()
+        } else {
+            temp_font
+                .render(&self.text)
+                .with_max_width(text_width)
+                .finish()
+        };
 
-        // Use specified text_width for window sizing (not rendered width which may be narrower)
-        let logical_content_width = logical_icon_width + text_width as u32;
+        // Use specified text_width for window sizing
+        // When no_wrap is true, width is treated as minimum, content can expand beyond it
+        let logical_content_width = logical_icon_width
+            + if self.no_wrap {
+                // Treat width as minimum: use max of content width and specified width
+                temp_text.width().max(text_width as u32)
+            } else {
+                // Use specified width for wrapping
+                text_width as u32
+            };
         let logical_inner_width = logical_content_width.max(logical_buttons_width);
         let calc_width = (logical_inner_width + BASE_PADDING * 2).max(BASE_MIN_WIDTH);
         let logical_text_height = temp_text.height().max(BASE_ICON_SIZE);
@@ -153,11 +172,14 @@ impl MessageBuilder {
         let physical_height = (logical_height as f32 * scale) as u32;
 
         // Pre-render text to get actual height
-        let text_canvas = font
-            .render(&self.text)
-            .with_color(colors.text)
-            .with_max_width(max_text_width)
-            .finish();
+        let text_canvas = if self.no_wrap {
+            font.render(&self.text).with_color(colors.text).finish()
+        } else {
+            font.render(&self.text)
+                .with_color(colors.text)
+                .with_max_width(max_text_width)
+                .finish()
+        };
         let text_height = text_canvas.height().max(icon_size);
 
         // Position buttons (right-aligned) in physical coordinates
@@ -184,6 +206,7 @@ impl MessageBuilder {
             &buttons,
             text_canvas.height(),
             max_text_width,
+            self.no_wrap,
             scale,
         );
         window.set_contents(&canvas)?;
@@ -230,6 +253,7 @@ impl MessageBuilder {
                         &buttons,
                         text_canvas.height(),
                         max_text_width,
+                        self.no_wrap,
                         scale,
                     );
                     window.set_contents(&canvas)?;
@@ -293,6 +317,7 @@ impl MessageBuilder {
                     &buttons,
                     text_canvas.height(),
                     max_text_width,
+                    self.no_wrap,
                     scale,
                 );
                 window.set_contents(&canvas)?;
@@ -310,6 +335,7 @@ fn draw_dialog(
     buttons: &[Button],
     text_height: u32,
     max_text_width: f32,
+    no_wrap: bool,
     scale: f32,
 ) {
     // Scale dimensions
@@ -339,11 +365,21 @@ fn draw_dialog(
     }
 
     // Draw text
-    let text_canvas = font
-        .render(text)
-        .with_color(colors.text)
-        .with_max_width(max_text_width)
-        .finish();
+    let text_canvas = if no_wrap {
+        font.render(text).with_color(colors.text).finish()
+    } else {
+        font.render(text)
+            .with_color(colors.text)
+            .with_max_width(max_text_width)
+            .finish()
+    };
+
+    // Center text horizontally within text area
+    let text_x = if no_wrap {
+        x
+    } else {
+        x + ((max_text_width - text_canvas.width() as f32) / 2.0).max(0.0) as i32
+    };
 
     // Center text horizontally within text area
     let text_x = x + ((max_text_width - text_canvas.width() as f32) / 2.0).max(0.0) as i32;

@@ -31,6 +31,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut timeout: Option<u32> = None;
     let mut width: Option<u32> = None;
     let mut height: Option<u32> = None;
+    let mut no_wrap = false;
 
     // Shared options (for list, forms, file-selector)
     let mut separator = String::from("|");
@@ -118,6 +119,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             Long("timeout") => timeout = Some(parser.value()?.string()?.parse()?),
             Long("width") => width = Some(parser.value()?.string()?.parse()?),
             Long("height") => height = Some(parser.value()?.string()?.parse()?),
+            Long("no-wrap") => no_wrap = true,
             Long("separator") => separator = parser.value()?.string()?,
 
             // Progress options
@@ -213,6 +215,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             if let Some(h) = height {
                 builder = builder.height(h);
             }
+            if no_wrap {
+                builder = builder.no_wrap(true);
+            }
             let result = builder.show()?;
             Ok(result.exit_code())
         }
@@ -230,6 +235,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             }
             if let Some(h) = height {
                 builder = builder.height(h);
+            }
+            if no_wrap {
+                builder = builder.no_wrap(true);
             }
             let result = builder.show()?;
             Ok(result.exit_code())
@@ -249,6 +257,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             if let Some(h) = height {
                 builder = builder.height(h);
             }
+            if no_wrap {
+                builder = builder.no_wrap(true);
+            }
             let result = builder.show()?;
             Ok(result.exit_code())
         }
@@ -266,6 +277,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             }
             if let Some(h) = height {
                 builder = builder.height(h);
+            }
+            if no_wrap {
+                builder = builder.no_wrap(true);
             }
             let result = builder.show()?;
             Ok(result.exit_code())
@@ -615,15 +629,16 @@ fn print_help() {
 USAGE:
     zenity-rs --<dialog-type> [OPTIONS] [VALUES...]
 
-COMMON OPTIONS:
+ COMMON OPTIONS:
     --title=TEXT        Set the dialog title
     --text=TEXT         Set the dialog text/prompt
-    --width=N           Set the dialog width
+    --width=N           Set the dialog width (minimum when --no-wrap is used)
     --height=N          Set the dialog height
+    --no-wrap          Do not wrap text (width becomes minimum, content can expand)
     -h, --help          Print this help message
     --version           Print version information
 
-DIALOG TYPES AND OPTIONS:
+ DIALOG TYPES AND OPTIONS:
 
   Message Dialogs:
     --info              Display an information dialog
@@ -631,6 +646,7 @@ DIALOG TYPES AND OPTIONS:
     --error             Display an error dialog
     --question          Display a question dialog (Yes/No)
       --timeout=N       Auto-close after N seconds (exit code 5)
+      --no-wrap        Do not wrap text (width becomes minimum, content can expand)
 
   --entry               Display a text entry dialog
     --entry-text=TEXT Set default text
