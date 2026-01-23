@@ -138,10 +138,27 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             }
             Long("filename") => filename = parser.value()?.string()?,
             Long("file-filter") => {
-                let pattern = parser.value()?.string()?;
-                file_filters.push(zenity_rs::FileFilter {
-                    pattern,
-                });
+                let filter_spec = parser.value()?.string()?;
+                // Parse "Name | Pattern1 Pattern2 Pattern3" format
+                if let Some((name, patterns_str)) = filter_spec.split_once('|') {
+                    let name = name.trim().to_string();
+                    // Split patterns by whitespace and filter empty strings
+                    let patterns: Vec<String> = patterns_str
+                        .split_whitespace()
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string())
+                        .collect();
+                    file_filters.push(zenity_rs::FileFilter {
+                        name,
+                        patterns,
+                    });
+                } else {
+                    // Just pattern provided, use it as both name and single pattern
+                    file_filters.push(zenity_rs::FileFilter {
+                        name: filter_spec.clone(),
+                        patterns: vec![filter_spec],
+                    });
+                }
             }
 
             // List options
@@ -662,13 +679,13 @@ USAGE:
     --no-cancel       Hide Cancel button
     --time-remaining  Show estimated time remaining
 
-  --file-selection      Display a file selection dialog
+   --file-selection      Display a file selection dialog
     --directory       Select directories only
     --save            Save mode (allows entering new filename)
     --multiple        Allow multiple file selection
     --separator=TEXT  Output separator for multiple files (default: space)
     --filename=TEXT   Default filename/path
-    --file-filter=PATTERN  Add file filter (e.g., "*.rs" or "*.txt")
+    --file-filter=SPEC Add file filter (e.g., "*.rs" or "Video | *.mkv *.mp4")
 
    --list                Display a list selection dialog
      --column=TEXT     Add a column header (can be repeated)
@@ -708,6 +725,7 @@ USAGE:
     zenity-rs --file-selection --save --filename="output.txt"
     zenity-rs --file-selection --multiple --file-filter="*.rs" --file-filter="*.txt"
     zenity-rs --file-selection --multiple --separator="|" file1.rs file2.txt file3.rs
+    zenity-rs --file-selection --file-filter="Video | *.mkv *.mp4 *.avi" --file-filter="Image | *.jpg *.png *.gif"
     zenity-rs --list --column="Name" --column="Size" file1 10KB file2 20KB
     zenity-rs --calendar --text="Select date:" --year=2024 --month=12
     zenity-rs --text-info --filename=LICENSE --checkbox="I accept"

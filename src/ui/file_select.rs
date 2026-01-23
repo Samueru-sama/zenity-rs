@@ -73,7 +73,8 @@ enum QuickAccessIcon {
 /// File filter pattern.
 #[derive(Debug, Clone)]
 pub struct FileFilter {
-    pub pattern: String,
+    pub name: String,
+    pub patterns: Vec<String>,
 }
 
 /// File selection dialog builder.
@@ -1368,8 +1369,10 @@ fn update_filtered(
 fn matches_any_filter(name: &str, filters: &[FileFilter]) -> bool {
     let name_lower = name.to_lowercase();
     for filter in filters {
-        if matches_pattern(&name_lower, &filter.pattern) {
-            return true;
+        for pattern in &filter.patterns {
+            if matches_pattern(&name_lower, pattern) {
+                return true;
+            }
         }
     }
     false
