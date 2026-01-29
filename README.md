@@ -186,25 +186,25 @@ zenity-rs --forms --add-entry="First" --add-entry="Last" --separator=","
 ### Default (X11 + Wayland)
 
 ```bash
-cargo build --release
+cargo build --release -Z build-std=std,panic_abort
 ```
 
 ### X11 only
 
 ```bash
-cargo build --release --no-default-features --features x11
+cargo build --release --no-default-features --features x11 -Z build-std=std,panic_abort
 ```
 
 ### Wayland only
 
 ```bash
-cargo build --release --no-default-features --features wayland
+cargo build --release --no-default-features --features wayland -Z build-std=std,panic_abort
 ```
 
 ### Static binary (musl)
 
 ```bash
-cargo build --release --target x86_64-unknown-linux-musl
+cargo build --release --target x86_64-unknown-linux-musl -Z build-std=std,panic_abort
 ```
 
 ## License
