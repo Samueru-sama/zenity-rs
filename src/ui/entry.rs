@@ -1,12 +1,12 @@
 //! Entry dialog implementation for text input.
 
 use crate::{
-    backend::{create_window, CursorShape, Window, WindowEvent},
+    backend::{CursorShape, Window, WindowEvent, create_window},
     error::Error,
     render::{Canvas, Font},
     ui::{
-        widgets::{button::Button, text_input::TextInput, Widget},
         Colors,
+        widgets::{Widget, button::Button, text_input::TextInput},
     },
 };
 
@@ -102,7 +102,11 @@ impl EntryBuilder {
         let temp_ok = Button::new("OK", &temp_font, 1.0);
         let temp_cancel = Button::new("Cancel", &temp_font, 1.0);
         let temp_prompt_height = if !self.text.is_empty() {
-            temp_font.render(&self.text).finish().height()
+            temp_font
+                .render(&self.text)
+                .with_max_width(BASE_INPUT_WIDTH as f32)
+                .finish()
+                .height()
         } else {
             0
         };
@@ -162,9 +166,14 @@ impl EntryBuilder {
             .with_default_text(&self.entry_text);
         input.set_focus(true);
 
-        // Render prompt text at physical scale
+        // Render prompt text at physical scale (wrapped to fit)
         let prompt_canvas = if !self.text.is_empty() {
-            Some(font.render(&self.text).with_color(colors.text).finish())
+            Some(
+                font.render(&self.text)
+                    .with_color(colors.text)
+                    .with_max_width((physical_width - padding * 2) as f32)
+                    .finish(),
+            )
         } else {
             None
         };

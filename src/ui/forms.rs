@@ -1,12 +1,12 @@
 //! Forms dialog implementation for multiple input fields.
 
 use crate::{
-    backend::{create_window, CursorShape, Window, WindowEvent},
+    backend::{CursorShape, Window, WindowEvent, create_window},
     error::Error,
     render::{Canvas, Font},
     ui::{
-        widgets::{button::Button, text_input::TextInput, Widget},
         Colors,
+        widgets::{Widget, button::Button, text_input::TextInput},
     },
 };
 
@@ -139,7 +139,11 @@ impl FormsBuilder {
         let temp_ok = Button::new("OK", &temp_font, 1.0);
         let temp_cancel = Button::new("Cancel", &temp_font, 1.0);
         let temp_prompt_height = if !self.text.is_empty() {
-            temp_font.render(&self.text).finish().height()
+            temp_font
+                .render(&self.text)
+                .with_max_width(BASE_INPUT_WIDTH as f32)
+                .finish()
+                .height()
         } else {
             0
         };
@@ -195,9 +199,14 @@ impl FormsBuilder {
         let mut ok_button = Button::new("OK", &font, scale);
         let mut cancel_button = Button::new("Cancel", &font, scale);
 
-        // Render prompt text at physical scale
+        // Render prompt text at physical scale (wrapped to fit)
         let prompt_canvas = if !self.text.is_empty() {
-            Some(font.render(&self.text).with_color(colors.text).finish())
+            Some(
+                font.render(&self.text)
+                    .with_color(colors.text)
+                    .with_max_width(input_width as f32)
+                    .finish(),
+            )
         } else {
             None
         };
@@ -287,8 +296,12 @@ impl FormsBuilder {
             for (i, (field, input)) in fields.iter().zip(inputs.iter()).enumerate() {
                 let field_y = field_positions[i];
 
-                // Draw label (vertically centered with input)
-                let label_canvas = font.render(field.label()).with_color(colors.text).finish();
+                // Draw label (vertically centered with input, wrapped if needed)
+                let label_canvas = font
+                    .render(field.label())
+                    .with_color(colors.text)
+                    .with_max_width(label_width as f32)
+                    .finish();
                 let label_y = field_y + (field_height as i32 - label_canvas.height() as i32) / 2;
                 canvas.draw_canvas(&label_canvas, label_x, label_y);
 

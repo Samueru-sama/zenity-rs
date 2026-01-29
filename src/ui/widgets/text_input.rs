@@ -236,7 +236,25 @@ impl TextInput {
         if !text_to_render.is_empty() {
             let text_canvas = font.render(text_to_render).with_color(text_color).finish();
             let text_y = self.y + (self.height as i32 - text_canvas.height() as i32) / 2;
-            canvas.draw_canvas(&text_canvas, self.x + INPUT_PADDING, text_y);
+
+            // Clip text to input width
+            let available_width = (self.width as i32 - 2 * INPUT_PADDING) as u32;
+            if text_canvas.width() > available_width {
+                // Create a sub-pixmap with only the visible portion
+                let mut visible_canvas =
+                    crate::render::Canvas::new(available_width, text_canvas.height());
+                visible_canvas.pixmap.draw_pixmap(
+                    0,
+                    0,
+                    text_canvas.pixmap.as_ref(),
+                    &tiny_skia::PixmapPaint::default(),
+                    tiny_skia::Transform::identity(),
+                    None,
+                );
+                canvas.draw_canvas(&visible_canvas, self.x + INPUT_PADDING, text_y);
+            } else {
+                canvas.draw_canvas(&text_canvas, self.x + INPUT_PADDING, text_y);
+            }
         }
 
         // Draw cursor
