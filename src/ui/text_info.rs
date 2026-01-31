@@ -165,6 +165,7 @@ impl TextInfoBuilder {
         } else {
             0
         };
+        let button_spacing = (24.0 * scale) as u32;
         let button_y = (physical_height - padding - button_height) as i32;
         let checkbox_y = if has_checkbox {
             button_y - checkbox_row_height as i32 - (8.0 * scale) as i32
@@ -172,15 +173,16 @@ impl TextInfoBuilder {
             button_y
         };
 
-        // Text area bounds
+        // Text area bounds (with more spacing below it)
         let text_area_x = padding as i32;
         let text_area_y = padding as i32 + title_height as i32;
         let text_area_w = physical_width - padding * 2;
-        let text_area_h = if has_checkbox {
-            checkbox_y as u32 - padding - (8.0 * scale) as u32
+        let text_area_bottom = if has_checkbox {
+            checkbox_y as u32 - button_spacing
         } else {
-            button_y as u32 - padding - (8.0 * scale) as u32
+            button_y as u32 - button_spacing
         };
+        let text_area_h = text_area_bottom - padding - (8.0 * scale) as u32;
 
         // Calculate text wrapping - split content into wrapped lines
         let max_text_width = text_area_w - (16.0 * scale) as u32; // Account for scrollbar
