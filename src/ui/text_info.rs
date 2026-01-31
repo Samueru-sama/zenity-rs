@@ -154,6 +154,11 @@ impl TextInfoBuilder {
         let mut cancel_button = Button::new("Cancel", &font, scale);
 
         // Layout calculation
+        let title_height = if self.title.is_empty() {
+            0
+        } else {
+            (line_height + (8.0 * scale) as u32)
+        };
         let button_height = (32.0 * scale) as u32;
         let checkbox_row_height = if has_checkbox {
             checkbox_size + (8.0 * scale) as u32
@@ -169,7 +174,7 @@ impl TextInfoBuilder {
 
         // Text area bounds
         let text_area_x = padding as i32;
-        let text_area_y = padding as i32;
+        let text_area_y = padding as i32 + title_height as i32;
         let text_area_w = physical_width - padding * 2;
         let text_area_h = if has_checkbox {
             checkbox_y as u32 - padding - (8.0 * scale) as u32
@@ -242,6 +247,7 @@ impl TextInfoBuilder {
         let draw = |canvas: &mut Canvas,
                     colors: &Colors,
                     font: &Font,
+                    title: &str,
                     wrapped_lines: &[String],
                     scroll_offset: usize,
                     visible_lines: usize,
@@ -272,6 +278,17 @@ impl TextInfoBuilder {
                 colors.window_shadow,
                 radius,
             );
+
+            // Draw title if present
+            if !title.is_empty() {
+                // Render title with larger font (1.5x normal size)
+                let title_font_size = 18.0 * 1.5 * scale;
+                let title_font = Font::load_with_size(title_font_size);
+                let title_rendered = title_font.render(title).with_color(colors.text).finish();
+                let title_x = (width as i32 - title_rendered.width() as i32) / 2;
+                let title_y = padding as i32;
+                canvas.draw_canvas(&title_rendered, title_x, title_y);
+            }
 
             // Text area background
             canvas.fill_rounded_rect(
@@ -399,6 +416,7 @@ impl TextInfoBuilder {
             &mut canvas,
             colors,
             &font,
+            &self.title,
             &wrapped_lines,
             scroll_offset,
             visible_lines,
@@ -563,6 +581,7 @@ impl TextInfoBuilder {
                     &mut canvas,
                     colors,
                     &font,
+                    &self.title,
                     &wrapped_lines,
                     scroll_offset,
                     visible_lines,

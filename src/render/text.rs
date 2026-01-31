@@ -20,6 +20,14 @@ impl Font {
         }
     }
 
+    /// Loads the font with a specific size in pixels (already scaled).
+    pub fn load_with_size(size: f32) -> Self {
+        let inner = ab_glyph::FontRef::try_from_slice(FALLBACK_FONT).unwrap();
+        Self {
+            font: inner.into_scaled(size),
+        }
+    }
+
     /// Returns a renderer for the given text.
     pub fn render<'a>(&'a self, text: &'a str) -> TextRenderer<'a> {
         TextRenderer {
