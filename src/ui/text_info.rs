@@ -413,6 +413,11 @@ impl TextInfoBuilder {
             cancel_button.draw_to(canvas, colors, font);
         };
 
+        // Scrollbar thumb dragging state
+        let mut thumb_drag = false;
+        let mut thumb_drag_offset: Option<i32> = None;
+        let mut last_cursor_pos: Option<(i32, i32)> = None;
+
         // Initial draw
         draw(
             &mut canvas,
@@ -448,11 +453,44 @@ impl TextInfoBuilder {
             match &event {
                 WindowEvent::CloseRequested => return Ok(TextInfoResult::Closed),
                 WindowEvent::RedrawRequested => needs_redraw = true,
-                WindowEvent::CursorMove(pos) => {
-                    if has_checkbox {
-                        let mx = pos.x as i32;
-                        let my = pos.y as i32;
+                WindowEvent::CursorEnter(pos) | WindowEvent::CursorMove(pos) => {
+                    let mx = pos.x as i32;
+                    let my = pos.y as i32;
 
+                    // Store current cursor position
+                    last_cursor_pos = Some((mx, my));
+
+                    // Handle scrollbar thumb dragging
+                    if thumb_drag && total_lines > visible_lines {
+                        let text_area_mx = mx - text_area_x;
+                        let text_area_my = my - text_area_y;
+
+                        let sb_x = text_area_w as i32 - (10.0 * scale) as i32;
+                        let sb_y_f32 = 4.0 * scale;
+                        let sb_y = sb_y_f32 as i32;
+                        let sb_h_f32 = text_area_h as f32 - 8.0 * scale;
+                        let sb_h = sb_h_f32 as i32;
+
+                        let max_scroll = total_lines.saturating_sub(visible_lines);
+                        if max_scroll > 0 {
+                            let thumb_h_f32 = (visible_lines as f32 / total_lines as f32
+                                * sb_h_f32)
+                                .max(20.0 * scale);
+                            let thumb_h = thumb_h_f32 as i32;
+                            let max_thumb_y = sb_h - thumb_h;
+
+                            let offset = thumb_drag_offset.unwrap_or(thumb_h / 2);
+                            let thumb_y = (text_area_my - sb_y - offset).clamp(0, max_thumb_y);
+                            let scroll_ratio = if max_thumb_y > 0 {
+                                thumb_y as f32 / max_thumb_y as f32
+                            } else {
+                                0.0
+                            };
+                            scroll_offset =
+                                ((scroll_ratio * max_scroll as f32) as usize).clamp(0, max_scroll);
+                            needs_redraw = true;
+                        }
+                    } else if has_checkbox {
                         // Check if hovering checkbox area
                         let cb_x = padding as i32;
                         let cb_row_width = checkbox_size as i32 + (8.0 * scale) as i32 + 200; // Approximate label width
@@ -471,7 +509,53 @@ impl TextInfoBuilder {
                     if checkbox_hovered {
                         checkbox_checked = !checkbox_checked;
                         needs_redraw = true;
+                    } else if let Some((mx, my)) = last_cursor_pos {
+                        if total_lines > visible_lines {
+                            // Check if clicking on scrollbar thumb
+                            if mx >= text_area_x
+                                && mx < text_area_x + text_area_w as i32
+                                && my >= text_area_y
+                                && my < text_area_y + text_area_h as i32
+                            {
+                                let text_area_mx = mx - text_area_x;
+                                let text_area_my = my - text_area_y;
+
+                                let sb_x = text_area_w as i32 - (10.0 * scale) as i32;
+                                let sb_y_f32 = 4.0 * scale;
+                                let sb_y = sb_y_f32 as i32;
+                                let sb_h_f32 = text_area_h as f32 - 8.0 * scale;
+                                let sb_h = sb_h_f32 as i32;
+
+                                let thumb_h_f32 = (visible_lines as f32 / total_lines as f32
+                                    * sb_h_f32)
+                                    .max(20.0 * scale);
+                                let thumb_h = thumb_h_f32 as i32;
+
+                                let max_scroll = total_lines.saturating_sub(visible_lines);
+                                let thumb_y = if max_scroll > 0 {
+                                    let max_thumb_y = sb_h - thumb_h;
+                                    ((scroll_offset as f32 / max_scroll as f32)
+                                        * max_thumb_y as f32)
+                                        as i32
+                                } else {
+                                    0
+                                };
+
+                                if text_area_mx >= sb_x
+                                    && text_area_mx < sb_x + (6.0 * scale) as i32
+                                    && text_area_my >= sb_y + thumb_y
+                                    && text_area_my < sb_y + thumb_y + thumb_h
+                                {
+                                    thumb_drag = true;
+                                    thumb_drag_offset = Some(text_area_my - (sb_y + thumb_y));
+                                }
+                            }
+                        }
                     }
+                }
+                WindowEvent::ButtonRelease(_, _) => {
+                    thumb_drag = false;
+                    thumb_drag_offset = None;
                 }
                 WindowEvent::Scroll(direction) => {
                     match direction {
@@ -571,9 +655,57 @@ impl TextInfoBuilder {
 
             // Batch process pending events
             while let Some(ev) = window.poll_for_event()? {
-                if let WindowEvent::CloseRequested = ev {
-                    return Ok(TextInfoResult::Closed);
+                match &ev {
+                    WindowEvent::CloseRequested => {
+                        return Ok(TextInfoResult::Closed);
+                    }
+                    WindowEvent::CursorEnter(pos) | WindowEvent::CursorMove(pos) => {
+                        last_cursor_pos = Some((pos.x as i32, pos.y as i32));
+                    }
+                    WindowEvent::ButtonPress(button, _modifiers)
+                        if *button == crate::backend::MouseButton::Left =>
+                    {
+                        if let Some((mx, my)) = last_cursor_pos {
+                            if total_lines > visible_lines {
+                                let sb_x = text_area_w as i32 - (10.0 * scale) as i32;
+                                let sb_y_f32 = 4.0 * scale;
+                                let sb_y = sb_y_f32 as i32;
+                                let sb_h_f32 = text_area_h as f32 - 8.0 * scale;
+                                let sb_h = sb_h_f32 as i32;
+
+                                let thumb_h_f32 = (visible_lines as f32 / total_lines as f32
+                                    * sb_h_f32)
+                                    .max(20.0 * scale);
+                                let thumb_h = thumb_h_f32 as i32;
+
+                                let max_scroll = total_lines.saturating_sub(visible_lines);
+                                let max_thumb_y = sb_h - thumb_h;
+                                let thumb_y = if max_scroll > 0 {
+                                    ((scroll_offset as f32 / max_scroll as f32)
+                                        * max_thumb_y as f32)
+                                        as i32
+                                } else {
+                                    0
+                                };
+
+                                if mx >= text_area_x + sb_x
+                                    && mx < text_area_x + sb_x + (6.0 * scale) as i32
+                                    && my >= text_area_y + sb_y + thumb_y
+                                    && my < text_area_y + sb_y + thumb_y + thumb_h
+                                {
+                                    thumb_drag = true;
+                                    thumb_drag_offset = Some(my - (text_area_y + sb_y + thumb_y));
+                                }
+                            }
+                        }
+                    }
+                    WindowEvent::ButtonRelease(_, _) => {
+                        thumb_drag = false;
+                        thumb_drag_offset = None;
+                    }
+                    _ => {}
                 }
+
                 needs_redraw |= ok_button.process_event(&ev);
                 needs_redraw |= cancel_button.process_event(&ev);
             }

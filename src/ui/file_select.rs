@@ -256,6 +256,10 @@ impl FileSelectBuilder {
         let mut hovered_entry: Option<usize> = None;
         let mut hovered_drive: Option<usize> = None;
 
+        // Scrollbar thumb dragging state
+        let mut thumb_drag = false;
+        let mut thumb_drag_offset: Option<i32> = None;
+
         // Load initial directory
         load_directory(&current_dir, &mut all_entries, self.directory, show_hidden);
         update_filtered(
@@ -808,70 +812,158 @@ impl FileSelectBuilder {
             match &event {
                 WindowEvent::CloseRequested => return Ok(FileSelectResult::Closed),
                 WindowEvent::RedrawRequested => needs_redraw = true,
-                WindowEvent::CursorMove(pos) => {
+                WindowEvent::CursorEnter(pos) | WindowEvent::CursorMove(pos) => {
                     mouse_x = pos.x as i32;
                     mouse_y = pos.y as i32;
 
-                    // Update hover states
-                    let old_qa = hovered_quick_access;
-                    let old_entry = hovered_entry;
-                    let old_drive = hovered_drive;
+                    // Handle scrollbar thumb dragging
+                    if thumb_drag && !filtered_entries.is_empty() {
+                        let scrollbar_x = main_x + main_w as i32 - (8.0 * scale) as i32;
+                        let scrollbar_y = list_y;
+                        let scrollbar_h = list_h as i32;
 
-                    // Check places hover
-                    hovered_quick_access = None;
-                    hovered_drive = None;
+                        if mouse_x >= main_x
+                            && mouse_x < main_x + main_w as i32
+                            && mouse_y >= list_y
+                            && mouse_y < list_y + list_h as i32
+                        {
+                            let visible_items = (list_h / item_height) as usize;
+                            let total_items = filtered_entries.len();
+                            let max_scroll = if total_items > visible_items {
+                                total_items - visible_items
+                            } else {
+                                0
+                            };
 
-                    if mouse_x >= sidebar_x
-                        && mouse_x < sidebar_x + sidebar_width as i32
-                        && mouse_y >= sidebar_y
-                    {
-                        let places_items_start_y =
-                            sidebar_y + (8.0 * scale) as i32 + section_header_height as i32;
-                        let rel_y = mouse_y - places_items_start_y;
-                        if rel_y >= 0 {
-                            let idx = (rel_y as f32 / item_height_scaled as f32) as usize;
-                            if idx < quick_access.len() {
-                                hovered_quick_access = Some(idx);
+                            if max_scroll > 0 {
+                                let scrollbar_h_f32 = list_h as f32 - 8.0 * scale;
+                                let thumb_h_f32 = (visible_items as f32 / total_items as f32
+                                    * scrollbar_h_f32)
+                                    .max(20.0 * scale);
+                                let thumb_h = thumb_h_f32 as i32;
+                                let max_thumb_y = scrollbar_h_f32 as i32 - thumb_h;
+
+                                let offset = thumb_drag_offset.unwrap_or(thumb_h / 2);
+                                let thumb_y =
+                                    (mouse_y - scrollbar_y - offset).clamp(0, max_thumb_y);
+                                let scroll_ratio = if max_thumb_y > 0 {
+                                    thumb_y as f32 / max_thumb_y as f32
+                                } else {
+                                    0.0
+                                };
+                                scroll_offset = ((scroll_ratio * max_scroll as f32) as usize)
+                                    .clamp(0, max_scroll);
+                                needs_redraw = true;
+                            }
+                        }
+                    }
+
+                    // Update hover states (only when not dragging)
+                    if !thumb_drag {
+                        let old_qa = hovered_quick_access;
+                        let old_entry = hovered_entry;
+                        let old_drive = hovered_drive;
+
+                        // Check places hover
+                        hovered_quick_access = None;
+                        hovered_drive = None;
+
+                        if mouse_x >= sidebar_x
+                            && mouse_x < sidebar_x + sidebar_width as i32
+                            && mouse_y >= sidebar_y
+                        {
+                            let places_items_start_y =
+                                sidebar_y + (8.0 * scale) as i32 + section_header_height as i32;
+                            let rel_y = mouse_y - places_items_start_y;
+                            if rel_y >= 0 {
+                                let idx = (rel_y as f32 / item_height_scaled as f32) as usize;
+                                if idx < quick_access.len() {
+                                    hovered_quick_access = Some(idx);
+                                }
+                            }
+
+                            if !mounted_drives.is_empty() {
+                                let drives_section_y = places_items_start_y
+                                    + (quick_access.len() as i32 * item_height_scaled as i32)
+                                    + gap_between_sections as i32;
+                                let drives_items_start_y =
+                                    drives_section_y + section_header_height as i32;
+                                let rel_y = mouse_y - drives_items_start_y;
+                                if rel_y >= 0 {
+                                    let idx = (rel_y as f32 / item_height_scaled as f32) as usize;
+                                    if idx < mounted_drives.len() {
+                                        hovered_drive = Some(idx);
+                                    }
+                                }
                             }
                         }
 
-                        if !mounted_drives.is_empty() {
-                            let drives_section_y = places_items_start_y
-                                + (quick_access.len() as i32 * item_height_scaled as i32)
-                                + gap_between_sections as i32;
-                            let drives_items_start_y =
-                                drives_section_y + section_header_height as i32;
-                            let rel_y = mouse_y - drives_items_start_y;
-                            if rel_y >= 0 {
-                                let idx = (rel_y as f32 / item_height_scaled as f32) as usize;
-                                if idx < mounted_drives.len() {
-                                    hovered_drive = Some(idx);
+                        // Check file list hover
+                        if mouse_x >= main_x
+                            && mouse_x < main_x + main_w as i32
+                            && mouse_y >= list_y
+                            && mouse_y < list_y + list_h as i32
+                        {
+                            let rel_y = (mouse_y - list_y) as usize;
+                            let idx = scroll_offset + rel_y / item_height as usize;
+                            if idx < filtered_entries.len() {
+                                hovered_entry = Some(filtered_entries[idx]);
+                            }
+                        }
+
+                        if old_qa != hovered_quick_access
+                            || old_entry != hovered_entry
+                            || old_drive != hovered_drive
+                        {
+                            needs_redraw = true;
+                        }
+                    }
+                }
+                WindowEvent::ButtonPress(MouseButton::Left, _) => {
+                    // Check for scrollbar thumb click
+                    if !filtered_entries.is_empty() {
+                        let scrollbar_x = main_x + main_w as i32 - (8.0 * scale) as i32;
+                        let scrollbar_y = list_y;
+                        let scrollbar_h = list_h as i32;
+
+                        if mouse_x >= main_x
+                            && mouse_x < main_x + main_w as i32
+                            && mouse_y >= list_y
+                            && mouse_y < list_y + list_h as i32
+                        {
+                            let visible_items = (list_h / item_height) as usize;
+                            let total_items = filtered_entries.len();
+
+                            if visible_items < total_items {
+                                let scrollbar_h_f32 = list_h as f32 - 8.0 * scale;
+                                let thumb_h_f32 = (visible_items as f32 / total_items as f32
+                                    * scrollbar_h_f32)
+                                    .max(20.0 * scale);
+                                let thumb_h = thumb_h_f32 as i32;
+
+                                let max_scroll = total_items - visible_items;
+                                let max_thumb_y = scrollbar_h_f32 as i32 - thumb_h;
+                                let thumb_y = if max_thumb_y > 0 {
+                                    ((scroll_offset as f32 / max_scroll as f32)
+                                        * max_thumb_y as f32)
+                                        as i32
+                                } else {
+                                    0
+                                };
+
+                                let rel_y = mouse_y - scrollbar_y;
+                                if mouse_x >= scrollbar_x
+                                    && mouse_x < scrollbar_x + (6.0 * scale) as i32
+                                    && rel_y >= scrollbar_y as i32 + thumb_y
+                                    && rel_y < scrollbar_y as i32 + thumb_y + thumb_h
+                                {
+                                    thumb_drag = true;
+                                    thumb_drag_offset = Some(mouse_y - (scrollbar_y + thumb_y));
                                 }
                             }
                         }
                     }
 
-                    // Check file list hover
-                    if mouse_x >= main_x
-                        && mouse_x < main_x + main_w as i32
-                        && mouse_y >= list_y
-                        && mouse_y < list_y + list_h as i32
-                    {
-                        let rel_y = (mouse_y - list_y) as usize;
-                        let idx = scroll_offset + rel_y / item_height as usize;
-                        if idx < filtered_entries.len() {
-                            hovered_entry = Some(filtered_entries[idx]);
-                        }
-                    }
-
-                    if old_qa != hovered_quick_access
-                        || old_entry != hovered_entry
-                        || old_drive != hovered_drive
-                    {
-                        needs_redraw = true;
-                    }
-                }
-                WindowEvent::ButtonPress(MouseButton::Left, _) => {
                     // Toolbar buttons
                     let nav_y = padding as i32 + (4.0 * scale) as i32;
                     let btn_size = (28.0 * scale) as i32;
@@ -1078,6 +1170,10 @@ impl FileSelectBuilder {
                         && mouse_y >= search_y
                         && mouse_y < search_y + (32.0 * scale) as i32;
                     search_input.set_focus(in_search);
+                }
+                WindowEvent::ButtonRelease(_, _) => {
+                    thumb_drag = false;
+                    thumb_drag_offset = None;
                 }
                 WindowEvent::Scroll(direction) => {
                     match direction {
@@ -1303,13 +1399,67 @@ impl FileSelectBuilder {
 
             // Batch pending events
             while let Some(ev) = window.poll_for_event()? {
-                if let WindowEvent::CloseRequested = ev {
-                    return Ok(FileSelectResult::Closed);
+                match &ev {
+                    WindowEvent::CloseRequested => {
+                        return Ok(FileSelectResult::Closed);
+                    }
+                    WindowEvent::CursorEnter(pos) | WindowEvent::CursorMove(pos) => {
+                        mouse_x = pos.x as i32;
+                        mouse_y = pos.y as i32;
+                    }
+                    WindowEvent::ButtonPress(button, _modifiers)
+                        if *button == MouseButton::Left =>
+                    {
+                        if !filtered_entries.is_empty() {
+                            let scrollbar_x = main_x + main_w as i32 - (8.0 * scale) as i32;
+                            let scrollbar_y = list_y;
+                            let scrollbar_h = list_h as i32;
+
+                            if mouse_x >= main_x
+                                && mouse_x < main_x + main_w as i32
+                                && mouse_y >= list_y
+                                && mouse_y < list_y + list_h as i32
+                            {
+                                let visible_items = (list_h / item_height) as usize;
+                                let total_items = filtered_entries.len();
+
+                                if visible_items < total_items {
+                                    let scrollbar_h_f32 = list_h as f32 - 8.0 * scale;
+                                    let thumb_h_f32 = (visible_items as f32 / total_items as f32
+                                        * scrollbar_h_f32)
+                                        .max(20.0 * scale);
+                                    let thumb_h = thumb_h_f32 as i32;
+
+                                    let max_scroll = total_items - visible_items;
+                                    let max_thumb_y = scrollbar_h_f32 as i32 - thumb_h;
+                                    let thumb_y = if max_thumb_y > 0 {
+                                        ((scroll_offset as f32 / max_scroll as f32)
+                                            * max_thumb_y as f32)
+                                            as i32
+                                    } else {
+                                        0
+                                    };
+
+                                    let rel_y = mouse_y - scrollbar_y;
+                                    if mouse_x >= scrollbar_x
+                                        && mouse_x < scrollbar_x + (6.0 * scale) as i32
+                                        && rel_y >= thumb_y
+                                        && rel_y < thumb_y + thumb_h
+                                    {
+                                        thumb_drag = true;
+                                        thumb_drag_offset = Some(mouse_y - (scrollbar_y + thumb_y));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    WindowEvent::ButtonRelease(_, _) => {
+                        thumb_drag = false;
+                        thumb_drag_offset = None;
+                    }
+                    _ => {}
                 }
-                if let WindowEvent::CursorMove(pos) = ev {
-                    mouse_x = pos.x as i32;
-                    mouse_y = pos.y as i32;
-                }
+
                 needs_redraw |= ok_button.process_event(&ev);
                 needs_redraw |= cancel_button.process_event(&ev);
             }
