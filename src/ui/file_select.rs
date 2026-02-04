@@ -8,12 +8,12 @@ use std::{
 };
 
 use crate::{
-    backend::{create_window, MouseButton, Window, WindowEvent},
+    backend::{MouseButton, Window, WindowEvent, create_window},
     error::Error,
-    render::{rgb, Canvas, Font, Rgba},
+    render::{Canvas, Font, Rgba, rgb},
     ui::{
-        widgets::{button::Button, text_input::TextInput, Widget},
         Colors,
+        widgets::{Widget, button::Button, text_input::TextInput},
     },
 };
 
@@ -84,7 +84,6 @@ struct MountPoint {
 enum MountIcon {
     UsbDrive,
     ExternalHdd,
-    Network,
     Optical,
     Generic,
 }
@@ -259,7 +258,6 @@ impl FileSelectBuilder {
         // Scrollbar thumb dragging state
         let mut thumb_drag = false;
         let mut thumb_drag_offset: Option<i32> = None;
-        let mut clicking_scrollbar = false;
         let mut scrollbar_hovered = false;
 
         // Load initial directory
@@ -831,9 +829,7 @@ impl FileSelectBuilder {
 
                     // Handle scrollbar thumb dragging
                     if thumb_drag && !filtered_entries.is_empty() {
-                        let scrollbar_x = main_x + main_w as i32 - (8.0 * scale) as i32;
                         let scrollbar_y = list_y;
-                        let scrollbar_h = list_h as i32;
 
                         if mouse_x >= main_x
                             && mouse_x < main_x + main_w as i32
@@ -842,11 +838,7 @@ impl FileSelectBuilder {
                         {
                             let visible_items = (list_h / item_height) as usize;
                             let total_items = filtered_entries.len();
-                            let max_scroll = if total_items > visible_items {
-                                total_items - visible_items
-                            } else {
-                                0
-                            };
+                            let max_scroll = total_items.saturating_sub(visible_items);
 
                             if max_scroll > 0 {
                                 let scrollbar_h_f32 = list_h as f32 - 8.0 * scale;
@@ -947,7 +939,7 @@ impl FileSelectBuilder {
                     }
                 }
                 WindowEvent::ButtonPress(MouseButton::Left, _) => {
-                    clicking_scrollbar = false;
+                    let mut clicking_scrollbar = false;
 
                     // Check if clicking anywhere in scrollbar area (thumb OR track)
                     if !filtered_entries.is_empty() {
@@ -1422,11 +1414,7 @@ impl FileSelectBuilder {
                     }
                 } else if let Some(&sel) = selected_indices.iter().next() {
                     let entry = &all_entries[sel];
-                    if self.directory && entry.is_dir {
-                        return Ok(FileSelectResult::Selected(entry.path.clone()));
-                    } else if !self.directory && !entry.is_dir {
-                        return Ok(FileSelectResult::Selected(entry.path.clone()));
-                    }
+                    return Ok(FileSelectResult::Selected(entry.path.clone()));
                 } else if self.directory {
                     return Ok(FileSelectResult::Selected(current_dir.clone()));
                 }
@@ -1452,7 +1440,6 @@ impl FileSelectBuilder {
                         if !filtered_entries.is_empty() {
                             let scrollbar_x = main_x + main_w as i32 - (8.0 * scale) as i32;
                             let scrollbar_y = list_y;
-                            let scrollbar_h = list_h as i32;
 
                             if mouse_x >= main_x
                                 && mouse_x < main_x + main_w as i32
@@ -1662,11 +1649,7 @@ fn get_volume_label(device: &str) -> Option<String> {
 
     let label = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-    if label.is_empty() {
-        None
-    } else {
-        Some(label)
-    }
+    if label.is_empty() { None } else { Some(label) }
 }
 
 fn get_mount_icon(device: &str) -> MountIcon {
@@ -1759,8 +1742,8 @@ fn load_directory(path: &Path, entries: &mut Vec<DirEntry>, dirs_only: bool, sho
         }
     }
 
-    dirs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    dirs.sort_by_key(|a| a.name.to_lowercase());
+    files.sort_by_key(|a| a.name.to_lowercase());
 
     entries.extend(dirs);
     entries.extend(files);
@@ -1807,14 +1790,13 @@ fn matches_pattern(name: &str, pattern: &str) -> bool {
     if pattern_lower.starts_with("*") && pattern_lower.ends_with("*") {
         let inner = &pattern_lower[1..pattern_lower.len() - 1];
         name.contains(inner)
-    } else if pattern_lower.starts_with("*") {
-        let suffix = &pattern_lower[1..];
+    } else if let Some(suffix) = pattern_lower.strip_prefix("*") {
         name.ends_with(suffix)
     } else if pattern_lower.ends_with("*") {
         let prefix = &pattern_lower[..pattern_lower.len() - 1];
         name.starts_with(prefix)
     } else {
-        name == &pattern_lower
+        name == pattern_lower
     }
 }
 
@@ -1831,6 +1813,7 @@ fn navigate_to(
     *current = dest;
 }
 
+#[allow(clippy::too_many_arguments)]
 fn navigate_to_directory(
     dest: PathBuf,
     current_dir: &mut PathBuf,
@@ -1913,6 +1896,7 @@ fn format_date(time: Option<SystemTime>) -> String {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_nav_button(
     canvas: &mut Canvas,
     x: i32,
@@ -1940,6 +1924,7 @@ fn draw_nav_button(
     canvas.draw_canvas(&tc, x + (10.0 * scale) as i32, y + (6.0 * scale) as i32);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_toggle(
     canvas: &mut Canvas,
     x: i32,
@@ -2107,7 +2092,7 @@ fn draw_breadcrumbs(
 
 fn draw_folder_icon(canvas: &mut Canvas, x: i32, y: i32, colors: &Colors, scale: f32) {
     let folder_color = rgb(240, 180, 70); // Golden folder
-    let icon_size = (BASE_ICON_SIZE as f32 * scale) as f32;
+    let icon_size = BASE_ICON_SIZE as f32 * scale;
     // Folder body
     canvas.fill_rounded_rect(
         x as f32,
@@ -2131,7 +2116,7 @@ fn draw_folder_icon(canvas: &mut Canvas, x: i32, y: i32, colors: &Colors, scale:
 
 fn draw_file_icon(canvas: &mut Canvas, x: i32, y: i32, name: &str, colors: &Colors, scale: f32) {
     let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
-    let icon_size = (BASE_ICON_SIZE as f32 * scale) as f32;
+    let icon_size = BASE_ICON_SIZE as f32 * scale;
 
     let icon_color = match ext.as_str() {
         "rs" => rgb(220, 120, 70),          // Rust orange
@@ -2228,7 +2213,6 @@ fn draw_mount_icon(
     let color = match icon {
         MountIcon::UsbDrive => rgb(100, 200, 200),
         MountIcon::ExternalHdd => rgb(150, 150, 180),
-        MountIcon::Network => rgb(100, 150, 100),
         MountIcon::Optical => rgb(200, 150, 100),
         MountIcon::Generic => rgb(140, 140, 140),
     };

@@ -1,12 +1,12 @@
 //! Scale dialog implementation for selecting a numeric value with a slider.
 
 use crate::{
-    backend::{create_window, MouseButton, Window, WindowEvent},
+    backend::{MouseButton, Window, WindowEvent, create_window},
     error::Error,
     render::{Canvas, Font},
     ui::{
-        widgets::{button::Button, Widget},
         Colors,
+        widgets::{Widget, button::Button},
     },
 };
 
@@ -208,15 +208,6 @@ impl ScaleBuilder {
         let thumb_y = y;
         y += thumb_size as i32 + (16.0 * scale) as i32;
 
-        // Value display position
-        let value_y = if self.hide_value {
-            y
-        } else {
-            let vy = y;
-            y += (24.0 * scale) as i32;
-            vy
-        };
-
         // Button positions (right-aligned)
         let button_y = physical_height as i32 - padding as i32 - (32.0 * scale) as i32;
         let mut button_x = physical_width as i32 - padding as i32;
@@ -400,7 +391,7 @@ impl ScaleBuilder {
             slider_height,
             thumb_y,
             thumb_size,
-            value_y,
+            y,
             prompt_y,
             physical_width,
             scale,
@@ -575,7 +566,7 @@ impl ScaleBuilder {
                     slider_height,
                     thumb_y,
                     thumb_size,
-                    value_y,
+                    y,
                     prompt_y,
                     physical_width,
                     scale,

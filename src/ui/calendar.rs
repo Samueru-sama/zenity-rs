@@ -1,12 +1,12 @@
 //! Calendar date picker dialog implementation.
 
 use crate::{
-    backend::{create_window, MouseButton, Window, WindowEvent},
+    backend::{MouseButton, Window, WindowEvent, create_window},
     error::Error,
-    render::{rgb, Canvas, Font, Rgba},
+    render::{Canvas, Font, Rgba, rgb},
     ui::{
-        widgets::{button::Button, Widget},
         Colors,
+        widgets::{Widget, button::Button},
     },
 };
 
@@ -164,7 +164,6 @@ impl CalendarBuilder {
         let cell_size = (BASE_CELL_SIZE as f32 * scale) as u32;
         let header_height = (BASE_HEADER_HEIGHT as f32 * scale) as u32;
         let day_header_height = (BASE_DAY_HEADER_HEIGHT as f32 * scale) as u32;
-        let dropdown_item_height = (BASE_DROPDOWN_ITEM_HEIGHT as f32 * scale) as u32;
 
         // Calculate physical dimensions
         let grid_width = cell_size * 7;
@@ -588,6 +587,7 @@ impl CalendarBuilder {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_calendar(
     canvas: &mut Canvas,
     colors: &Colors,
@@ -822,6 +822,7 @@ fn draw_calendar(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_month_dropdown(
     canvas: &mut Canvas,
     colors: &Colors,
@@ -911,6 +912,7 @@ fn draw_month_dropdown(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_year_dropdown(
     canvas: &mut Canvas,
     colors: &Colors,

@@ -7,12 +7,12 @@ use x11rb::{
     connection::Connection as X11rbConnection,
     properties::WmSizeHints,
     protocol::{
+        Event,
         xproto::{
             self, AtomEnum, ClientMessageEvent, ConfigureWindowAux, ConnectionExt as _,
             CreateWindowAux, EventMask, ImageFormat, KeyButMask, PropMode, StackMode, VisualClass,
             WindowClass,
         },
-        Event,
     },
     rust_connection::RustConnection,
     wrapper::ConnectionExt as _,
@@ -91,7 +91,6 @@ pub(crate) struct X11Window {
     gc: xproto::Gcontext,
     lookup_table: LookupTable,
     xkb_group: u8,
-    cursor_default: xproto::Cursor,
     cursor_text: xproto::Cursor,
     current_cursor: CursorShape,
 }
@@ -248,7 +247,6 @@ impl X11Window {
             gc,
             lookup_table,
             xkb_group: 0,
-            cursor_default,
             cursor_text,
             current_cursor: CursorShape::Default,
         };
@@ -309,12 +307,7 @@ impl X11Window {
                 let group = kbvm::GroupIndex(self.xkb_group as u32);
                 let lookup = self.lookup_table.lookup(group, mods, keycode);
 
-                let keysym = lookup
-                    .clone()
-                    .into_iter()
-                    .next()
-                    .map(|p| p.keysym().0)
-                    .unwrap_or(0);
+                let keysym = lookup.into_iter().next().map(|p| p.keysym().0).unwrap_or(0);
 
                 // Get character from lookup and emit TextInput for printable characters
                 let ch: Option<char> = lookup.into_iter().flat_map(|p| p.char()).next();
@@ -406,19 +399,19 @@ fn convert_modifiers(state: KeyButMask) -> Modifiers {
 fn convert_to_kbvm_mods(state: KeyButMask) -> kbvm::ModifierMask {
     let mut mods = kbvm::ModifierMask::NONE;
     if state.contains(KeyButMask::SHIFT) {
-        mods = mods | kbvm::ModifierMask::SHIFT;
+        mods |= kbvm::ModifierMask::SHIFT;
     }
     if state.contains(KeyButMask::CONTROL) {
-        mods = mods | kbvm::ModifierMask::CONTROL;
+        mods |= kbvm::ModifierMask::CONTROL;
     }
     if state.contains(KeyButMask::MOD1) {
-        mods = mods | kbvm::ModifierMask::MOD1;
+        mods |= kbvm::ModifierMask::MOD1;
     }
     if state.contains(KeyButMask::MOD4) {
-        mods = mods | kbvm::ModifierMask::MOD4;
+        mods |= kbvm::ModifierMask::MOD4;
     }
     if state.contains(KeyButMask::LOCK) {
-        mods = mods | kbvm::ModifierMask::LOCK;
+        mods |= kbvm::ModifierMask::LOCK;
     }
     mods
 }

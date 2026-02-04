@@ -9,6 +9,7 @@ use std::{
 
 use kbvm::lookup::LookupTable;
 use wayland_client::{
+    Connection as WaylandConnection, Dispatch, EventQueue, QueueHandle, WEnum,
     protocol::{
         wl_buffer::{self, WlBuffer},
         wl_callback::{self, WlCallback},
@@ -22,7 +23,6 @@ use wayland_client::{
         wl_shm_pool::WlShmPool,
         wl_surface::WlSurface,
     },
-    Connection as WaylandConnection, Dispatch, EventQueue, QueueHandle, WEnum,
 };
 use wayland_protocols::xdg::shell::client::{
     xdg_surface::{self, XdgSurface},
@@ -32,8 +32,8 @@ use wayland_protocols::xdg::shell::client::{
 
 use self::shm::ShmPool;
 use super::{
-    CursorPos, CursorShape, DisplayConnection, KeyEvent, Modifiers, MouseButton, ScrollDirection,
-    Window, WindowEvent, DEFAULT_SCALE,
+    CursorPos, CursorShape, DEFAULT_SCALE, DisplayConnection, KeyEvent, Modifiers, MouseButton,
+    ScrollDirection, Window, WindowEvent,
 };
 use crate::{
     error::{Error, WaylandError},
@@ -142,10 +142,6 @@ pub(crate) struct WaylandWindow {
     state: WaylandState,
     shm_pool: ShmPool,
     buffer: WlBuffer,
-    /// Logical width (what the user requested)
-    logical_width: i32,
-    /// Logical height (what the user requested)
-    logical_height: i32,
     /// Physical width (logical * scale)
     physical_width: i32,
     /// Physical height (logical * scale)
@@ -254,8 +250,6 @@ impl WaylandWindow {
             state,
             shm_pool,
             buffer,
-            logical_width,
-            logical_height,
             physical_width,
             physical_height,
             scale,
@@ -277,7 +271,7 @@ impl WaylandWindow {
             let (width, height) = image.dimensions();
             let (xhot, yhot) = image.hotspot();
 
-            self.cursor_surface.attach(Some(&image), 0, 0);
+            self.cursor_surface.attach(Some(image), 0, 0);
             self.cursor_surface
                 .damage_buffer(0, 0, width as i32, height as i32);
             self.cursor_surface.commit();
@@ -667,17 +661,17 @@ impl Dispatch<WlPointer, ()> for WaylandState {
                 value,
                 ..
             } => {
-                if let WEnum::Value(axis) = axis {
-                    if axis == wl_pointer::Axis::VerticalScroll {
-                        let direction = if value > 0.0.into() {
-                            ScrollDirection::Down
-                        } else {
-                            ScrollDirection::Up
-                        };
-                        state
-                            .pending_events
-                            .push_back(WindowEvent::Scroll(direction));
-                    }
+                if let WEnum::Value(axis) = axis
+                    && axis == wl_pointer::Axis::VerticalScroll
+                {
+                    let direction = if value > 0.0 {
+                        ScrollDirection::Down
+                    } else {
+                        ScrollDirection::Up
+                    };
+                    state
+                        .pending_events
+                        .push_back(WindowEvent::Scroll(direction));
                 }
             }
             _ => {}
@@ -740,12 +734,7 @@ impl Dispatch<WlKeyboard, ()> for WaylandState {
                     let group = kbvm::GroupIndex(state.keyboard_group);
                     let lookup = lookup_table.lookup(group, state.modifier_mask, keycode);
 
-                    let keysym = lookup
-                        .clone()
-                        .into_iter()
-                        .next()
-                        .map(|p| p.keysym().0)
-                        .unwrap_or(0);
+                    let keysym = lookup.into_iter().next().map(|p| p.keysym().0).unwrap_or(0);
 
                     match key_state {
                         WEnum::Value(wl_keyboard::KeyState::Pressed) => {

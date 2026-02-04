@@ -8,15 +8,15 @@ use std::{
 };
 
 #[cfg(unix)]
-use libc::{getppid, kill, SIGTERM};
+use libc::{SIGTERM, getppid, kill};
 
 use crate::{
-    backend::{create_window, Window, WindowEvent},
+    backend::{Window, WindowEvent, create_window},
     error::Error,
     render::{Canvas, Font},
     ui::{
-        widgets::{button::Button, progress_bar::ProgressBar, Widget},
         Colors,
+        widgets::{Widget, button::Button, progress_bar::ProgressBar},
     },
 };
 
@@ -160,7 +160,6 @@ impl ProgressBuilder {
             + BASE_BUTTON_HEIGHT;
         drop(temp_font);
         drop(temp_button);
-        drop(temp_bar);
 
         // Use custom dimensions if provided, otherwise use calculated defaults
         let logical_width = self.width.unwrap_or(calc_width) as u16;
@@ -237,9 +236,9 @@ impl ProgressBuilder {
 
                 let trimmed = line.trim();
 
-                if trimmed.starts_with('#') {
+                if let Some(text) = trimmed.strip_prefix('#') {
                     // Status text update
-                    let text = trimmed[1..].trim().to_string();
+                    let text = text.trim().to_string();
                     if tx.send(StdinMessage::Text(text)).is_err() {
                         break;
                     }
@@ -306,7 +305,7 @@ impl ProgressBuilder {
             progress_bar.draw(canvas, colors);
 
             // Draw cancel button
-            if let Some(ref button) = cancel_button {
+            if let Some(button) = cancel_button {
                 button.draw_to(canvas, colors, font);
             }
         };
@@ -343,7 +342,6 @@ impl ProgressBuilder {
         window.set_contents(&canvas)?;
         window.show()?;
 
-        let mut stdin_done = false;
         let auto_close = self.auto_close;
 
         // Event loop with timeout for animation
@@ -376,7 +374,6 @@ impl ProgressBuilder {
                         needs_redraw = true;
                     }
                     Ok(StdinMessage::Done) => {
-                        stdin_done = true;
                         needs_redraw = true;
                         if auto_close {
                             return Ok(ProgressResult::Completed);
@@ -384,7 +381,6 @@ impl ProgressBuilder {
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {
-                        stdin_done = true;
                         needs_redraw = true;
                         if auto_close {
                             return Ok(ProgressResult::Completed);
@@ -422,10 +418,7 @@ impl ProgressBuilder {
                 }
             } else {
                 // Poll with short sleep to check stdin
-                match window.poll_for_event()? {
-                    Some(e) => Some(e),
-                    None => None,
-                }
+                window.poll_for_event()?
             };
 
             if let Some(event) = event {

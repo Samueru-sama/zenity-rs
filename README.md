@@ -33,7 +33,7 @@ Or build from source:
 ```bash
 git clone https://github.com/user/zenity-rs
 cd zenity-rs
-cargo build --release
+cargo build --release -Z build-std=std,panic_abort
 ```
 
 ## Usage

@@ -3,8 +3,8 @@ cargo-features = ["panic-immediate-abort"]
 [package]
 name = "zenity-rs"
 version = "0.1.11"
-edition = "2021"
-rust-version = "1.70"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT"
 description = "Display simple GUI dialogs from the command line"
 keywords = ["zenity", "dialog", "gui", "cli"]

@@ -4,9 +4,9 @@ use std::{io::IsTerminal, process::ExitCode};
 
 use lexopt::prelude::*;
 use zenity_rs::{
-    calendar, entry, file_select, forms, list, message, password, progress, scale, text_info,
     ButtonPreset, CalendarResult, EntryResult, FileSelectResult, FormsResult, Icon, ListResult,
-    ProgressResult, ScaleResult, TextInfoResult,
+    ProgressResult, ScaleResult, TextInfoResult, calendar, entry, file_select, forms, list,
+    message, password, progress, scale, text_info,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -407,7 +407,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             if !std::io::stdin().is_terminal() {
                 use std::io::{self, BufRead};
                 let stdin = io::stdin();
-                let lines: Vec<String> = stdin.lock().lines().filter_map(|l| l.ok()).collect();
+                let lines: Vec<String> = stdin.lock().lines().map_while(Result::ok).collect();
                 // Group lines by num_columns to form rows
                 for chunk in lines.chunks(num_columns) {
                     builder = builder.row(chunk.to_vec());

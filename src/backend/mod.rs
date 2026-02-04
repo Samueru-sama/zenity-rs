@@ -98,9 +98,9 @@ bitflags! {
 /// Type-erased window that can be either X11 or Wayland.
 pub(crate) enum AnyWindow {
     #[cfg(feature = "x11")]
-    X11(x11::X11Window),
+    X11(Box<x11::X11Window>),
     #[cfg(feature = "wayland")]
-    Wayland(wayland::WaylandWindow),
+    Wayland(Box<wayland::WaylandWindow>),
 }
 
 impl Window for AnyWindow {
@@ -203,7 +203,7 @@ fn try_wayland(width: u16, height: u16) -> Option<AnyWindow> {
             match conn.create_window(width, height) {
                 Ok(w) => {
                     std::mem::forget(conn);
-                    return Some(AnyWindow::Wayland(w));
+                    return Some(AnyWindow::Wayland(Box::new(w)));
                 }
                 Err(e) => eprintln!("Wayland window creation failed: {e}"),
             }
@@ -265,7 +265,7 @@ fn find_wayland_socket() -> Option<String> {
 fn try_x11(width: u16, height: u16) -> Result<AnyWindow, Error> {
     let conn = x11::Connection::connect()?;
     let w = conn.create_window(width, height)?;
-    Ok(AnyWindow::X11(w))
+    Ok(AnyWindow::X11(Box::new(w)))
 }
 
 #[cfg(feature = "wayland")]
@@ -277,7 +277,7 @@ struct SocketGuard {
 impl SocketGuard {
     fn new(path: &str) -> Self {
         let old_value = std::env::var_os("WAYLAND_DISPLAY");
-        std::env::set_var("WAYLAND_DISPLAY", path);
+        unsafe { std::env::set_var("WAYLAND_DISPLAY", path) };
         Self {
             old_value,
         }
@@ -288,8 +288,8 @@ impl SocketGuard {
 impl Drop for SocketGuard {
     fn drop(&mut self) {
         match &self.old_value {
-            Some(old) => std::env::set_var("WAYLAND_DISPLAY", old),
-            None => std::env::remove_var("WAYLAND_DISPLAY"),
+            Some(old) => unsafe { std::env::set_var("WAYLAND_DISPLAY", old) },
+            None => unsafe { std::env::remove_var("WAYLAND_DISPLAY") },
         }
     }
 }

@@ -58,6 +58,7 @@ impl Canvas {
     }
 
     /// Strokes a rounded rectangle outline.
+    #[allow(clippy::too_many_arguments)]
     pub fn stroke_rounded_rect(
         &mut self,
         x: f32,

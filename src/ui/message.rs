@@ -3,12 +3,12 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    backend::{create_window, MouseButton, Window, WindowEvent},
+    backend::{MouseButton, Window, WindowEvent, create_window},
     error::Error,
-    render::{rgb, Canvas, Font},
+    render::{Canvas, Font, rgb},
     ui::{
-        widgets::{button::Button, Widget},
         ButtonPreset, Colors, DialogResult, Icon,
+        widgets::{Widget, button::Button},
     },
 };
 
@@ -155,7 +155,6 @@ impl MessageBuilder {
         let font = Font::load(scale);
 
         // Scale dimensions for physical rendering
-        let icon_size = (BASE_ICON_SIZE as f32 * scale) as u32;
         let padding = (BASE_PADDING as f32 * scale) as u32;
         let button_spacing = (BASE_BUTTON_SPACING as f32 * scale) as u32;
         let max_text_width = text_width * scale;
@@ -180,7 +179,6 @@ impl MessageBuilder {
                 .with_max_width(max_text_width)
                 .finish()
         };
-        let text_height = text_canvas.height().max(icon_size);
 
         // Position buttons (right-aligned) in physical coordinates
         let mut button_x = physical_width as i32 - padding as i32;
@@ -326,6 +324,7 @@ impl MessageBuilder {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_dialog(
     canvas: &mut Canvas,
     colors: &Colors,
@@ -375,13 +374,6 @@ fn draw_dialog(
     };
 
     // Center text horizontally within text area
-    let text_x = if no_wrap {
-        x
-    } else {
-        x + ((max_text_width - text_canvas.width() as f32) / 2.0).max(0.0) as i32
-    };
-
-    // Center text horizontally within text area
     let text_x = x + ((max_text_width - text_canvas.width() as f32) / 2.0).max(0.0) as i32;
     // Center text vertically with icon
     let text_y = y + (icon_size as i32 - text_height as i32) / 2;
@@ -395,7 +387,7 @@ fn draw_dialog(
 
 fn draw_icon(canvas: &mut Canvas, x: i32, y: i32, icon: Icon, scale: f32) {
     let icon_size = (BASE_ICON_SIZE as f32 * scale) as u32;
-    let inset = (4.0 * scale) as f32;
+    let inset = 4.0 * scale;
 
     let (color, shape) = match icon {
         Icon::Info => (rgb(66, 133, 244), IconShape::Circle), // Blue

@@ -1,12 +1,12 @@
 //! List selection dialog implementation.
 
 use crate::{
-    backend::{create_window, MouseButton, Window, WindowEvent},
+    backend::{MouseButton, Window, WindowEvent, create_window},
     error::Error,
-    render::{rgb, Canvas, Font},
+    render::{Canvas, Font, rgb},
     ui::{
-        widgets::{button::Button, Widget},
         Colors,
+        widgets::{Widget, button::Button},
     },
 };
 
@@ -342,7 +342,7 @@ impl ListBuilder {
 
         // Calculate total content width including column gaps
         let column_gap = (16.0 * scale) as u32;
-        let num_gaps = if col_widths.len() > 0 {
+        let num_gaps = if !col_widths.is_empty() {
             col_widths.len() - 1
         } else {
             0
@@ -420,7 +420,6 @@ impl ListBuilder {
         let mut h_thumb_drag = false;
         let mut v_thumb_drag_offset: Option<i32> = None;
         let mut h_thumb_drag_offset: Option<i32> = None;
-        let mut clicking_scrollbar = false;
         let mut v_scrollbar_hovered = false;
         let mut h_scrollbar_hovered = false;
 
@@ -643,9 +642,8 @@ impl ListBuilder {
                         row_height as f32 + 1.0
                     };
                 let sb_y = data_y_local as f32;
-                let thumb_h = (((data_visible as f32 / rows.len() as f32 * sb_h).max(20.0 * scale))
-                    as f32)
-                    .min(sb_h);
+                let thumb_h =
+                    ((data_visible as f32 / rows.len() as f32 * sb_h).max(20.0 * scale)).min(sb_h);
                 let max_thumb_y = sb_h - thumb_h;
                 let thumb_y = if rows.len() > data_visible {
                     scroll_offset as f32 / (rows.len() - data_visible) as f32 * max_thumb_y
@@ -735,7 +733,7 @@ impl ListBuilder {
             );
 
             // Draw the list canvas to main canvas
-            canvas.draw_canvas(&list_canvas, list_x, list_y);
+            canvas.draw_canvas(list_canvas, list_x, list_y);
 
             // Buttons
             ok_button.draw_to(canvas, colors, font);
@@ -928,7 +926,7 @@ impl ListBuilder {
                     }
                 }
                 WindowEvent::ButtonPress(MouseButton::Left, mods) => {
-                    clicking_scrollbar = false;
+                    let mut clicking_scrollbar = false;
 
                     // Check if clicking anywhere in scrollbar area (thumb OR track)
                     if let Some((mx, my)) = last_cursor_pos {
@@ -960,16 +958,15 @@ impl ListBuilder {
                                         } else {
                                             row_height as f32 + 1.0
                                         };
-                                    let sb_h = sb_h_f32 as i32;
                                     let sb_y = if columns.is_empty() {
                                         0
                                     } else {
                                         (row_height + 1) as i32
                                     };
-                                    let thumb_h_f32 = (((data_visible as f32 / rows.len() as f32
+                                    let thumb_h_f32 = ((data_visible as f32 / rows.len() as f32
                                         * sb_h_f32)
                                         .max(20.0 * scale))
-                                    .min(sb_h_f32));
+                                    .min(sb_h_f32);
                                     let thumb_h = thumb_h_f32 as i32;
                                     let max_thumb_y = (sb_h_f32 - thumb_h_f32) as i32;
                                     let thumb_y = if rows.len() > data_visible {
@@ -1009,9 +1006,9 @@ impl ListBuilder {
                                     let max_scroll_u32 = total_content_width.saturating_sub(list_w);
                                     let max_scroll = (max_scroll_u32 as i32).max(1);
                                     let thumb_w_f32 =
-                                        (((list_w as f32 / total_content_width as f32 * sb_w_f32)
+                                        ((list_w as f32 / total_content_width as f32 * sb_w_f32)
                                             .max(20.0 * scale))
-                                        .min(sb_w_f32));
+                                        .min(sb_w_f32);
                                     let thumb_w = thumb_w_f32 as i32;
                                     let max_thumb_x = sb_w - thumb_w;
                                     let thumb_x = if max_scroll > 0 {
@@ -1287,16 +1284,10 @@ impl ListBuilder {
                                     } else {
                                         row_height as f32 + 1.0
                                     };
-                                let sb_h = sb_h_f32 as i32;
-                                let sb_y = if columns.is_empty() {
-                                    0
-                                } else {
-                                    (row_height + 1) as i32
-                                };
-                                let thumb_h_f32 = (((data_visible as f32 / rows.len() as f32
+                                let thumb_h_f32 = ((data_visible as f32 / rows.len() as f32
                                     * sb_h_f32)
                                     .max(20.0 * scale))
-                                .min(sb_h_f32));
+                                .min(sb_h_f32);
                                 let thumb_h = thumb_h_f32 as i32;
                                 let max_thumb_y = (sb_h_f32 - thumb_h_f32) as i32;
                                 let thumb_y = if rows.len() > data_visible {
@@ -1325,10 +1316,10 @@ impl ListBuilder {
                                 let sb_w = list_w as i32;
                                 let max_scroll_u32 = total_content_width.saturating_sub(list_w);
                                 let max_scroll = (max_scroll_u32 as i32).max(1);
-                                let thumb_w_f32 = (((list_w as f32 / total_content_width as f32
+                                let thumb_w_f32 = ((list_w as f32 / total_content_width as f32
                                     * sb_w_f32)
                                     .max(20.0 * scale))
-                                .min(sb_w_f32));
+                                .min(sb_w_f32);
                                 let thumb_w = thumb_w_f32 as i32;
                                 let max_thumb_x = sb_w - thumb_w;
                                 let thumb_x = if max_scroll > 0 {
@@ -1505,7 +1496,7 @@ fn draw_radio(
     checked: bool,
     colors: &Colors,
     checkbox_size: u32,
-    scale: f32,
+    _scale: f32,
 ) {
     let cx = x as f32 + checkbox_size as f32 / 2.0;
     let cy = y as f32 + checkbox_size as f32 / 2.0;

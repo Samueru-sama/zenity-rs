@@ -3,12 +3,12 @@
 use std::io::Read;
 
 use crate::{
-    backend::{create_window, Window, WindowEvent},
+    backend::{Window, WindowEvent, create_window},
     error::Error,
-    render::{rgb, Canvas, Font},
+    render::{Canvas, Font, rgb},
     ui::{
-        widgets::{button::Button, Widget},
         Colors,
+        widgets::{Widget, button::Button},
     },
 };
 
@@ -108,12 +108,12 @@ impl TextInfoBuilder {
 
         // Read content from file or stdin
         let content = if let Some(ref filename) = self.filename {
-            std::fs::read_to_string(filename).map_err(|e| Error::Io(e))?
+            std::fs::read_to_string(filename).map_err(Error::Io)?
         } else {
             let mut buf = String::new();
             std::io::stdin()
                 .read_to_string(&mut buf)
-                .map_err(|e| Error::Io(e))?;
+                .map_err(Error::Io)?;
             buf
         };
 
@@ -157,7 +157,7 @@ impl TextInfoBuilder {
         let title_height = if self.title.is_empty() {
             0
         } else {
-            (line_height + (8.0 * scale) as u32)
+            line_height + (8.0 * scale) as u32
         };
         let button_height = (32.0 * scale) as u32;
         let checkbox_row_height = if has_checkbox {
@@ -428,7 +428,7 @@ impl TextInfoBuilder {
         let mut thumb_drag = false;
         let mut thumb_drag_offset: Option<i32> = None;
         let mut last_cursor_pos: Option<(i32, i32)> = None;
-        let mut clicking_scrollbar = false;
+        let mut clicking_scrollbar: bool;
 
         // Initial draw
         draw(
@@ -475,10 +475,8 @@ impl TextInfoBuilder {
 
                     // Handle scrollbar thumb dragging
                     if thumb_drag && total_lines > visible_lines {
-                        let text_area_mx = mx - text_area_x;
                         let text_area_my = my - text_area_y;
 
-                        let sb_x = text_area_w as i32 - (10.0 * scale) as i32;
                         let sb_y_f32 = 4.0 * scale;
                         let sb_y = sb_y_f32 as i32;
                         let sb_h_f32 = text_area_h as f32 - 8.0 * scale;
@@ -595,11 +593,9 @@ impl TextInfoBuilder {
                     }
 
                     // Only process checkbox click if not clicking on scrollbar
-                    if !clicking_scrollbar {
-                        if checkbox_hovered {
-                            checkbox_checked = !checkbox_checked;
-                            needs_redraw = true;
-                        }
+                    if !clicking_scrollbar && checkbox_hovered {
+                        checkbox_checked = !checkbox_checked;
+                        needs_redraw = true;
                     }
                 }
                 WindowEvent::ButtonRelease(_, _) => {
