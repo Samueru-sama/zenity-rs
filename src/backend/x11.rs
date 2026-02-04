@@ -400,6 +400,9 @@ fn convert_modifiers(state: KeyButMask) -> Modifiers {
     if state.contains(KeyButMask::MOD4) {
         mods |= Modifiers::SUPER;
     }
+    if state.contains(KeyButMask::LOCK) {
+        mods |= Modifiers::CAPS_LOCK;
+    }
     mods
 }
 

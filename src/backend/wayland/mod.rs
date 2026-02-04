@@ -818,5 +818,8 @@ fn convert_wayland_modifiers(mask: kbvm::ModifierMask) -> Modifiers {
     if mask.contains(kbvm::ModifierMask::MOD4) {
         mods |= Modifiers::SUPER;
     }
+    if mask.contains(kbvm::ModifierMask::LOCK) {
+        mods |= Modifiers::CAPS_LOCK;
+    }
     mods
 }

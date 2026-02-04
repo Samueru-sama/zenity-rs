@@ -88,10 +88,11 @@ pub(crate) struct KeyEvent {
 bitflags! {
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
     pub(crate) struct Modifiers: u8 {
-        const SHIFT = 0x01;
-        const CTRL  = 0x02;
-        const ALT   = 0x04;
-        const SUPER = 0x08;
+        const SHIFT     = 0x01;
+        const CTRL      = 0x02;
+        const ALT       = 0x04;
+        const SUPER     = 0x08;
+        const CAPS_LOCK = 0x10;
     }
 }
 
