@@ -255,6 +255,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 multiple_mode = true;
             }
             Long("filename") => filename = parser.value()?.string()?,
+            Long("confirm-overwrite") => {
+                // Deprecated option, accepted for compatibility only
+            }
             Long("file-filter") => {
                 let filter_spec = parser.value()?.string()?;
                 // Parse "Name | Pattern1 Pattern2 Pattern3" format
@@ -848,12 +851,13 @@ USAGE:
     --time-remaining  Show estimated time remaining
 
    --file-selection      Display a file selection dialog
-    --directory       Select directories only
-    --save            Save mode (allows entering new filename)
-    --multiple        Allow multiple file selection
-    --separator=TEXT  Output separator for multiple files (default: space)
-    --filename=TEXT   Default filename/path
-    --file-filter=SPEC Add file filter (e.g., "*.rs" or "Video | *.mkv *.mp4")
+     --directory       Select directories only
+     --save            Save mode (allows entering new filename)
+     --multiple        Allow multiple file selection
+     --separator=TEXT  Output separator for multiple files (default: space)
+     --filename=TEXT   Default filename/path
+     --file-filter=SPEC Add file filter (e.g., "*.rs" or "Video | *.mkv *.mp4")
+     --confirm-overwrite  Deprecated, accepted for compatibility
 
    --list                Display a list selection dialog
      --column=TEXT     Add a column header (can be repeated)
