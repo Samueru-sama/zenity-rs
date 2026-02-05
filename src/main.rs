@@ -198,7 +198,8 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 return Ok(0);
             }
             Long("version") => {
-                println!("zenity-rs {VERSION}");
+                println!("3.44.5");
+                eprintln!("This is actually zenity-rs {VERSION}");
                 return Ok(0);
             }
 
